@@ -1,0 +1,9 @@
+{
+  "comfy_url": "http://127.0.0.1:8188",
+  "comfy_input": "C:/path/to/ComfyUI/input",
+  "comfy_output": "C:/path/to/ComfyUI/output",
+  "work_dir": "work",
+  "base_bodies": "base_bodies",
+  "node22": "C:/path/to/node22/node.exe",
+  "pxl": "C:/Users/you/.claude/skills/pxl-pixel-art/bin/pxl.js"
+}

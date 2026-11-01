@@ -1,0 +1,43 @@
+body_swap:
+
+subject_definitions:
+
+<Subject 1> is the character in <Picture 1>. Everything about how it looks comes from <Picture 1>: identity, face, head, hair, body shape, proportions, clothing, colours and every distinctive detail.
+
+Details of <Subject 1>:
+[add description here]
+
+<Subject 2> is the figure in <Video 1>. Only its look is replaced; its motion stays the guide.
+
+<Video 1> is the source video. It provides the background, framing, camera, timing and the full motion of the figure.
+
+summary:
+
+Remake <Video 1> with <Subject 2> replaced by <Subject 1> from <Picture 1>, keeping the scene, camera, timing and the complete motion: body pose, facing direction, head turn and every step.
+
+retention_analysis:
+
+<Subject 1>:
+attribute_transfer: the full look of the character from <Picture 1>, unchanged in every frame.
+
+<Subject 2>:
+performance_preserved: position, body pose, facing direction, arm and leg movement, head rotation and timing, frame by frame.
+
+<Video 1>:
+scene_and_motion_preserved: background, framing, camera, timing and composition. Only the figure's look changes.
+
+detailed_description:
+
+<Subject 1> takes the exact place of <Subject 2> and follows its motion frame by frame. When <Subject 2> faces away from the camera, <Subject 1> faces away too and shows its back; when it walks sideways, <Subject 1> is seen in profile.
+
+Use <Picture 1> only for the character's look. Do not take its camera angle, viewing direction, pose or background into the output.
+
+Keep the character identical in every frame: same face, hair, proportions, clothing and colours, no drift, no flicker, no blending with the look of <Subject 2>.
+
+Keep the plain background, framing and timing of <Video 1> unchanged. No text, no extra people or objects.
+
+overall_soundscape:
+N/A
+
+non_diegetic_music:
+N/A
