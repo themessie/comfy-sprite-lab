@@ -15,6 +15,7 @@ the same character with fewer steps.
 
 | # | Step | Script | What it does |
 |---|---|---|---|
+| 0 | Design sheet | `make_design_sheet.py` (or your own drawing) | The character's look: a full-body front view on a plain light background (side and back views optional). See [The design sheet](#the-design-sheet). |
 | 1 | Guide walk | `build_rig_sheet.py` | Your RPG Maker XP style base-body walk (4×4 frames), grown to 48×64 cells. Gives poses and directions. |
 | 2 | Character swap | `gen_h3_sheet.py` | MiniMax H3 per direction: the guide row, nearest-upscaled 6× and each pose held 5 frames, is the motion (`<Video 1>`); the design's front view with the head shrunk to 80 % is the character (`<Picture 1>`). Same face and outfit in every frame. |
 | 3 | Outline expansion | `gen_px64_pass.py --oe 3` | Each frame resized to 8× (512×640); PixelOE thickens small high-contrast details (tie, outline) so they survive. |
@@ -58,13 +59,48 @@ The full write-up of every test, with animated GIFs, is [examples/owens/walk_she
 - For step 8 only: [pxl](https://github.com/crsolver/claude-pxl) (MIT) and Node ≥ 22.18.
 - **A base-body walk sheet** in `base_bodies/` (RPG Maker XP layout: 4×4 frames, rows down/left/right/up). Not included: use one you
   are licensed to use.
-- **Your character**: edit `character.py` (description, design sheet, the front view's box on it).
+- **Your character**: a design sheet and `character.py` (see the next section).
 
 Copy `settings.example.json` to `settings.json` and set the ComfyUI input/output folders (and Node/pxl paths for step 8).
+
+## The design sheet
+
+The pipeline only needs one picture of the character: a **full-body front view** on a plain light background. Round one gives H3 that
+front view (with its head shrunk to 80 %, `--ref-head 0.8`) and H3 works out the side and back views from it plus the text
+description; `sheet_cleanup.py --design` also takes its colours. Round two no longer uses the design at all: its references are round
+one's own standing sprites. Side and back views on the same sheet are optional (useful to check the design, and for other tools).
+
+What makes a good front view: the whole body from head to shoes, facing straight at the viewer, arms down and a little away from the
+body, chibi proportions close to the target sprite (big head, short body), clean outlines and flat colours, nothing behind the figure.
+
+**Make one** with `make_design_sheet.py`: it puts the base body's four standing frames side by side (front, right, back, left) as a
+mannequin, and Qwen-Image 2.1 (edit, Turbo 8-step LoRA) dresses it as `character.DESCRIPTION` in one call, so the same person comes out
+from four sides at the base body's size. Seeds differ a lot: make a few and pick one.
+
+```bash
+python make_design_sheet.py Men01 --seeds 1,2,3       # -> work/design_Men01_s<seed>.png, each measured
+python make_design_sheet.py --measure my_drawing.png  # measure a design sheet you made yourself
+```
+
+Needs `qwen_image_2.1_int8_convrot.safetensors`, `qwen3vl_8b_int8_convrot.safetensors`, `qwen_image_2.1_vae_bf16.safetensors` and
+`Qwen-Image-2.1-Turbo8-8step-lora.safetensors` in ComfyUI.
+
+**Then fill in `character.py`**: `DESCRIPTION` (one line, used in every prompt), `DESIGN_SHEET` (the image), and the two numbers the
+script prints for it: `FRONT_CROP`, the front view's box (left, top, right, bottom) with a small margin, and `NECK`, the row inside that
+box where the head ends (the narrowest row between head and shoulders; `--ref-head` shrinks everything above it). The script writes
+`<name>_measure.png` with the boxes (blue: the figures, red: the front crop and the neck line) so you can check them.
+
+<img src="examples/owens/design_made_by_script.png" width="640">
+
+*Owens made by `make_design_sheet.py Men01 --seeds 1`, with the measurement drawn on. (The example sheets below were made from an
+earlier Owens design, `examples/owens/owens_4view.png`, drawn the same way on a Blender mannequin.)*
 
 ## Commands
 
 ```bash
+# design (once per character): make or draw one, then put DESCRIPTION, DESIGN_SHEET, FRONT_CROP and NECK into character.py
+python make_design_sheet.py Men01 --seeds 1,2,3
+
 # round one
 python build_rig_sheet.py Men01 --grow 1.5                                    # -> work/rig_Men01_body_big_1x.png
 python gen_h3_sheet.py owens --calm --big --rig rig_Men01_body_big --k 6 --pad 8 --ref-head 0.8
