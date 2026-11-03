@@ -4,6 +4,10 @@ Turn a character design into a **48×64, 4-direction RPG walk sheet that is real
 and outfit in all 16 frames, and the motion of a proper walk cycle. Built on ComfyUI, with MiniMax H3 doing the character swap and a
 few pixel-art tricks doing the rest.
 
+> All example images in this repository are **AI-generated** (MiniMax H3, Qwen-Image 2.1, Stable Diffusion 1.5 with the 8bitdiffuser
+> LoRA), then post-processed and hand-fixed. Using the pipeline means using these models under their own licences: see
+> [Licences and credits](#licences-and-credits).
+
 | Design sheet | Walk sheet | Walking |
 |---|---|---|
 | <img src="examples/owens/owens_4view.png" width="320"> | <img src="examples/owens/pxl/out/_preview/owens_walk_sheet.png" width="260"> | <img src="examples/owens/pxl/out/_preview/walk_down.gif" width="110"> <img src="examples/owens/pxl/out/_preview/walk_right.gif" width="110"> |
@@ -20,7 +24,7 @@ the same character with fewer steps.
 | 2 | Character swap | `gen_h3_sheet.py` | MiniMax H3 per direction: the guide row, nearest-upscaled 6× and each pose held 5 frames, is the motion (`<Video 1>`); the design's front view with the head shrunk to 80 % is the character (`<Picture 1>`). Same face and outfit in every frame. |
 | 3 | Outline expansion | `gen_px64_pass.py --oe 3` | Each frame resized to 8× (512×640); PixelOE thickens small high-contrast details (tie, outline) so they survive. |
 | 4 | Pixel pass | `gen_px64_pass.py --mode sheet` | All 16 frames as one 2048×2560 image, redrawn by SD 1.5 + the 8bitdiffuser 64x LoRA at 0.45. That LoRA draws one flat pixel per 8×8 latent cell, so the next step is lossless. One image for the whole sheet keeps the faces consistent. `--align row` first shifts each row to the grid window that keeps the most outline ink. |
-| 5 | Downscale ÷8 | (inside step 4) | k-centroid per 8×8 block, cropped to 48×64. |
+| 5 | Downscale ÷8 | (inside step 4) | k-centroid per 8×8 block with a detail bias (a dark minority of ≥ 40 % wins the block, so eyes and outlines survive; adapted from [sprite-gen](https://github.com/aldegad/sprite-gen)), cropped to 48×64. |
 | 6 | Sheet post | `sheet_post.py --stand --colors 32` | Background removed, one 32-colour palette for the sheet, standing frame copied to column 2. |
 | 7 | Clean-up rules | `sheet_cleanup.py` | Specks merged, spikes/notches fixed, **head lock** (the standing head copied into the stride frames: identical faces), selective outline; optional design-sheet palette. |
 | 8 | Pixel fixes as code | `sheet_to_pxl.py` + [pxl](https://github.com/crsolver/claude-pxl) | The sheet becomes a text file (pixel-exact); fix single pixels in `owens_fixes.px.js` (here: the tie back to navy, symmetric eyes) and export strips, GIFs, Aseprite-style anim JSON and a TexturePacker sheet. |
@@ -39,8 +43,8 @@ the same character with fewer steps.
   pixels at 8× and do not tile at 6×.
 - **Fix once, inherit everywhere**: pixels fixed in pxl on the standing sprites reappear in every frame H3 generates from them.
 
-The full write-up of every test, with animated GIFs, is [examples/owens/walk_sheet_tests_report.html](examples/owens/walk_sheet_tests_report.html)
-(download it and open it locally; it is 17 MB with everything embedded).
+The full test write-up (about 15 routes, with GIFs) is not published here, because it shows third-party base-body sprites and
+outputs of LoRAs whose licences were not checked; the findings above are its summary.
 
 ## Requirements
 
@@ -139,13 +143,26 @@ character description).
 ## Example: Owens
 
 `examples/owens/` holds the design sheet, the sheets from each stage (`sheets/`), walk GIFs, before/after comparisons, the pxl
-source with its fixes and exports (`pxl/`), and the full test report.
+source with its fixes and exports (`pxl/`).
 
 | Pass + rules | Round two | Fixes carried into round two |
 |---|---|---|
 | <img src="examples/owens/comparisons/cmp_downscale_final.png" width="300"> | <img src="examples/owens/comparisons/cmp_pxrows8.png" width="300"> | <img src="examples/owens/comparisons/cmp_pxfix_round2.png" width="200"> |
 
-## Licence
+## Licences and credits
 
-Code: MIT (see `LICENSE`). The Owens character and all images in `examples/owens/`: © themessie, all rights reserved. Models and
-tools keep their own licences (table above).
+- **Code:** MIT (`LICENSE`), except the detail-bias function in `pixelops.py`, adapted from
+  [sprite-gen](https://github.com/aldegad/sprite-gen) (Copyright 2026 Alex Kim, Apache-2.0, `LICENSES/Apache-2.0.txt`). See `NOTICE`.
+- **Credits:** k-centroid downscaling after Astropulse (Retro Diffusion); outline expansion by
+  [PixelOE](https://github.com/KohakuBlueleaf/PixelOE) (KohakuBlueleaf); pixel fixes and exports with
+  [pxl](https://github.com/crsolver/claude-pxl) (crsolver); everything runs in [ComfyUI](https://github.com/comfyanonymous/ComfyUI).
+  Full list with licences: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- **Models:** none are included; each has its own licence. In particular **MiniMax H3** (Community License Agreement): use and
+  distribution only outside the EU, UK, South Korea and USA (outputs included); outputs may not be used to train other AI models;
+  a commercial product or service using it must show "MiniMax H3" prominently in its UI; AI-generated content shared publicly must
+  be disclosed as such. MiniMax H3 is licensed under the MiniMax H3 Community License Agreement. Copyright © 2026 MiniMax. All Rights
+  Reserved.
+- **Examples:** the Owens character and all images in `examples/owens/` are © themessie, all rights reserved, and AI-generated.
+- **Base bodies** are not included; use sprites you have the rights to.
+
+This is a summary, not legal advice; the licence texts linked in THIRD_PARTY_NOTICES.md are what count.

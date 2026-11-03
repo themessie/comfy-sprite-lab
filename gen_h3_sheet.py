@@ -116,7 +116,7 @@ def run_row(tag, rig, r, cols, seed, ref, calm=False, heads=None, lora=None, lor
 
 
 def to_cell(im):
-    small = kcentroid_down(im.resize((W, H), Image.LANCZOS), K)
+    small = kcentroid_down(im.resize((W, H), Image.LANCZOS), K, detail_bias=True)
     return small.crop((PAD, PAD, PAD + CW, PAD + CH))
 
 

@@ -20,5 +20,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-The MIT licence above covers the code only. The Owens character and all images in examples/owens/ are
-© themessie, all rights reserved.
+The MIT licence above covers the code only, except the _dark_minority function in pixelops.py, which is adapted
+from sprite-gen (Copyright 2026 Alex Kim) and licensed under the Apache License 2.0 (LICENSES/Apache-2.0.txt; see NOTICE).
+The Owens character and all images in examples/owens/ are © themessie, all rights reserved.
