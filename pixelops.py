@@ -27,18 +27,32 @@ def _dark_minority(px):
     return None
 
 
-def kcentroid_down(im, f=4, detail_bias=False):
-    """k-centroid downscale: per f x f block take the dominant colour (most common after rounding to 8 levels per channel).
-    detail_bias: a dark minority (eyes, outlines) of at least 40 % wins the block (see _dark_minority)."""
+def kcentroid_down(im, f=4, detail_bias=False, true_colour=False):
+    """k-centroid downscale: per f x f block take the dominant colour (most common after rounding to 8 levels per channel; ties go
+    to the smallest colour code, as np.unique would). detail_bias: a dark minority (eyes, outlines) of at least 40 % wins the block
+    (see _dark_minority). true_colour: the block gets the mean of the pixels in its winning bucket instead of the bucket's rounded-down
+    value (the //8 rounding always darkens by 0-7 levels). Vectorised: all blocks at once; the detail-bias check only runs on blocks
+    that could trigger it."""
     a = np.asarray(im.convert("RGB")); H, W = a.shape[0] // f, a.shape[1] // f
-    blocks = (a[:H * f, :W * f].reshape(H, f, W, f, 3).transpose(0, 2, 1, 3, 4).reshape(H, W, f * f, 3) // 8) * 8
-    out = np.zeros((H, W, 3), np.uint8)
-    for y in range(H):
-        for x in range(W):
-            b = blocks[y, x]
-            if detail_bias:
-                d = _dark_minority(b)
-                if d is not None:
-                    b = d
-            v, c = np.unique(b, axis=0, return_counts=True); out[y, x] = v[c.argmax()]
-    return Image.fromarray(out)
+    raw = a[:H * f, :W * f].reshape(H, f, W, f, 3).transpose(0, 2, 1, 3, 4).reshape(H * W, f * f, 3)
+    blocks = (raw // 8) * 8
+    code0 = (blocks[..., 0].astype(np.int32) << 16) | (blocks[..., 1].astype(np.int32) << 8) | blocks[..., 2].astype(np.int32)
+    code = np.sort(code0, axis=1)
+    counts = np.zeros(code.shape, np.int32)
+    for k in range(code.shape[1]):                     # count of each sorted entry, row-wise (n x n compare in slices)
+        counts[:, k] = (code == code[:, k:k + 1]).sum(1)
+    mode = code[np.arange(code.shape[0]), counts.argmax(1)]
+    out = np.stack([(mode >> 16) & 255, (mode >> 8) & 255, mode & 255], -1).astype(np.uint8)
+    if true_colour:
+        win = (code0 == mode[:, None])[..., None]
+        out = ((raw * win).sum(1) / np.maximum(win.sum(1), 1)).round().astype(np.uint8)
+    if detail_bias:
+        lum = blocks.astype(np.float64) @ LUMA
+        maybe = np.nonzero((lum.min(1) < 70) & (lum.max(1) - lum.min(1) > 50))[0]
+        for i in maybe:
+            d = _dark_minority(blocks[i])
+            if d is not None:
+                v, c = np.unique(d, axis=0, return_counts=True); out[i] = v[c.argmax()]
+                if true_colour:
+                    m = (blocks[i] == v[c.argmax()]).all(-1); out[i] = raw[i][m].mean(0).round().astype(np.uint8)
+    return Image.fromarray(out.reshape(H, W, 3))

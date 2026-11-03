@@ -1,7 +1,7 @@
 """8bitdiffuser 64x (SD 1.5 LoRA PX64NOCAP_epoch_10, trigger pixel_art, draws on an 8 px grid) as a last pass over finished
 H3 or Wan Fun frames: the video model gives pose and character, SD 1.5 img2img at low denoise redraws each frame on an exact
 8x grid, and the /8 downscale (with grid phase search) is then close to lossless.
-Source frames: the middle frame of each 5-frame hold of a gen_h3_sheet.py run (output/h3_sheet/<src>_r<row>_*.png) or a
+Source frames: work/<src>_frames/r<row>_c<col>.png when gen_wan_walk.py made them; otherwise the middle frame of each 5-frame hold of a gen_h3_sheet.py run (output/h3_sheet/<src>_r<row>_*.png) or a
 gen_wan_fun.py run (not in this repo; output/wan_fun/<src>_r<row>/f_*.png), 384x480 = 48x64 cell + 8 px pad at 6x.
 --init hd: the frame resized to 8x (512x640, Lanczos); --init px: first k-centroid /6, then nearest x8 (what we have now, redrawn).
 Writes work/<tag>_1x.png, _raw.png, _prompt.json (engine "px64").
@@ -21,13 +21,16 @@ from pixelops import kcentroid_down
 CW, CH, PAD, K_SRC, K = 48, 64, 8, 6, 8
 W, H = (CW + 2 * PAD) * K, (CH + 2 * PAD) * K          # 512x640
 LORA = "PX64NOCAP_epoch_10.safetensors"
-POS = ("pixel_art, 1boy, chibi bearded detective, messy dark brown hair, brown beard, beige trench coat, white shirt, navy tie, "
-       "dark brown trousers, brown shoes, full body, standing, plain flat light gray background")
-NEG = "girl, woman, blurry, photo, realistic, 3d, text, watermark, extra limbs, deformed, scenery"
+import character
+POS = ("pixel_art, chibi game character, " + character.DESCRIPTION + ", full body, standing, plain flat light gray background")
+NEG = "blurry, photo, realistic, 3d, text, watermark, extra limbs, deformed, scenery"
 R = 5
 
 
 def source_frames(src, row, wan):
+    picked = os.path.join(h3.D, src + "_frames")                 # gen_wan_walk.py output: 4 picked frames per row
+    if os.path.exists(os.path.join(picked, f"r{row}_c0.png")):
+        return [Image.open(os.path.join(picked, f"r{row}_c{c}.png")).convert("RGB") for c in range(4)]
     if wan:
         d = os.path.join(g.COUT, "wan_fun", f"{src}_r{row}"); files = sorted(f for f in os.listdir(d) if f.startswith("f_"))
     else:

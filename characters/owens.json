@@ -1,0 +1,7 @@
+{
+  "name": "owens",
+  "description": "a chibi bearded detective with messy dark brown hair, wearing a knee-length beige trench coat, white shirt, navy tie, dark brown trousers and brown shoes",
+  "design_sheet": "examples/owens/owens_4view.png",
+  "front_crop": [50, 80, 340, 610],
+  "neck": 235
+}

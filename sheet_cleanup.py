@@ -30,13 +30,15 @@ def lab(rgb):
     return np.stack([116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]), 200 * (f[..., 1] - f[..., 2])], -1)
 
 
-def cells(a):
-    for r in range(4):
-        for c in range(4):
-            yield r, c, a[r * CH:(r + 1) * CH, c * CW:(c + 1) * CW]
+def cells(a, cw=CW, ch=CH):
+    """Every cell of a sheet (any number of rows and columns of cw x ch cells) as a view: changes write back to the sheet."""
+    for r in range(a.shape[0] // ch):
+        for c in range(a.shape[1] // cw):
+            yield r, c, a[r * ch:(r + 1) * ch, c * cw:(c + 1) * cw]
 
 
 def orphans(cell, de):
+    CH, CW = cell.shape[:2]
     rgb, op = cell[..., :3].astype(int), cell[..., 3] > 0
     out = cell.copy()
     for y in range(CH):
@@ -55,6 +57,7 @@ def orphans(cell, de):
 
 
 def silhouette(cell):
+    CH, CW = cell.shape[:2]
     out = cell.copy(); op = cell[..., 3] > 0
     for y in range(CH):
         for x in range(CW):
@@ -68,11 +71,37 @@ def silhouette(cell):
     return out
 
 
-def headlock(row, head_rows):
-    """row: [cell0..cell3]. Cell 0's head replaces the heads of cells 1 and 3 (cell 2 is the standing copy) at the best offset."""
+def thin(cell, dark=55):
+    """Outline doubles: where the outer outline is two dark pixels thick with lighter fill behind it, the inner dark pixel takes the
+    fill colour, so outlines stay 1 px (k-centroid tends to double them). Big dark areas (hair, boots) are left alone: the pixel
+    beyond the inner one must be light fill."""
+    CH, CW = cell.shape[:2]
+    out = cell.copy(); op = cell[..., 3] > 0; L = lab(cell[..., :3])[..., 0]
+    dk = op & (L < dark * 100 / 255)
+    edge = np.zeros_like(op)
+    for y in range(CH):
+        for x in range(CW):
+            if op[y, x] and any(not (0 <= y + dy < CH and 0 <= x + dx < CW) or not op[y + dy, x + dx] for dy, dx in N4):
+                edge[y, x] = True
+    for y in range(CH):
+        for x in range(CW):
+            if not dk[y, x] or edge[y, x]:
+                continue
+            for dy, dx in N4:
+                qy, qx, ry, rx = y + dy, x + dx, y - dy, x - dx
+                if (0 <= qy < CH and 0 <= qx < CW and 0 <= ry < CH and 0 <= rx < CW and edge[qy, qx] and dk[qy, qx]
+                        and op[ry, rx] and not dk[ry, rx]):
+                    out[y, x, :3] = cell[ry, rx, :3]; break
+    return out
+
+
+def headlock(row, head_rows, targets=(1, 3)):
+    """row: the cells of one direction. Cell 0's head replaces the heads of the target cells at the best-matching offset
+    (walk sheets: cells 1 and 3; cell 2 is the standing copy). Any cell size."""
+    CH, CW = row[0].shape[:2]
     ref = row[0]; op0 = ref[..., 3] > 0
     top = np.nonzero(op0.any(1))[0][0]; ref_head = ref[top:top + head_rows]
-    for c in (1, 3):
+    for c in targets:
         cell = row[c]; best = None
         tc = np.nonzero((cell[..., 3] > 0).any(1))[0][0]
         for dy in range(-2, 3):
@@ -111,6 +140,7 @@ def snap(a, pal):
 
 
 def selout(cell, pal):
+    CH, CW = cell.shape[:2]
     out = cell.copy(); op = cell[..., 3] > 0; P = lab(pal)
     edge = np.zeros_like(op)
     for y in range(CH):
@@ -136,6 +166,7 @@ def main():
     ap.add_argument("--silhouette", action="store_true"); ap.add_argument("--headlock", action="store_true")
     ap.add_argument("--head-rows", type=int, default=21); ap.add_argument("--design", type=int, default=0)
     ap.add_argument("--selout", action="store_true")
+    ap.add_argument("--thin", action="store_true", help="thin doubled outer outlines to 1 px")
     a = ap.parse_args()
     s = np.asarray(Image.open(os.path.join(D, a.src + "_sheet.png")).convert("RGBA")).copy()
     s[s[..., 3] < 128] = 0; s[..., 3][s[..., 3] > 0] = 255
@@ -145,6 +176,9 @@ def main():
     if a.silhouette:
         for r, c, cell in cells(s):
             cell[:] = silhouette(cell)
+    if a.thin:
+        for r, c, cell in cells(s):
+            cell[:] = thin(cell)
     if a.headlock:
         for r in range(4):
             row = [s[r * CH:(r + 1) * CH, c * CW:(c + 1) * CW] for c in range(4)]
@@ -157,7 +191,7 @@ def main():
             cell[:] = selout(cell, pal)
     Image.fromarray(s).save(os.path.join(D, a.out + "_sheet.png"))
     json.dump({"layout": "64", "engine": "cleanup", "src": a.src, "orphans": a.orphans, "orphan_de": a.orphan_de, "silhouette": a.silhouette,
-               "headlock": a.headlock, "head_rows": a.head_rows, "design": a.design, "selout": a.selout},
+               "headlock": a.headlock, "head_rows": a.head_rows, "design": a.design, "selout": a.selout, "thin": a.thin},
               open(os.path.join(D, a.out + "_prompt.json"), "w"))
     print(a.out, len(np.unique(s[..., :3][s[..., 3] > 0], axis=0)), "colours")
 

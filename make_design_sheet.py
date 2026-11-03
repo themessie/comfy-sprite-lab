@@ -8,7 +8,7 @@ narrowest row between head and shoulders, inside the crop) for character.py, and
 Only the front view feeds the pipeline (round one's H3 reference, and its colours for sheet_cleanup.py --design); the side and back
 views are for you and for other tools.
 
-Usage: python make_design_sheet.py Men01 [--seeds 1,2,3]          -> work/design_<body>_s<seed>.png + measurements
+Usage: python make_design_sheet.py Men01 [--seeds 1,2,3] [--style simple]   -> work/design_<body>[_simple]_s<seed>.png + measurements
        python make_design_sheet.py --measure path/to/your_sheet.png
 """
 import argparse, os, shutil
@@ -24,6 +24,14 @@ PROMPT = ("This is a character turnaround sheet of a mannequin, the same figure 
           "this exact mannequin as a real character: {desc}. Keep exactly the mannequin's proportions, pose, size and place in every view: the "
           "same big head, the same short body, arms and legs where the mannequin has them. Cute chibi game character, clean lineart, flat "
           "colours with two or three tones per material, readable face. Plain light grey background, no text.")
+
+SIMPLE = ("This is a character turnaround sheet of a mannequin, the same figure four times: from left to right the {views}. Dress and draw "
+          "this exact mannequin as a character for a tiny 48x64-pixel game sprite: {desc}. Keep exactly the mannequin's proportions, pose, "
+          "size and place in every view: the same big head, the same short body, arms and legs where the mannequin has them. Design it to "
+          "stay readable when shrunk to 48x64 pixels: very thick, bold, dark outlines around the whole figure and between the clothing "
+          "parts, large flat areas of colour with at most two tones per material, simple big shapes, big simple eyes, a simple mouth. "
+          "No small details: no freckles, no stitching, no buttons, no laces, no fabric texture, no thin lines, no gradients. "
+          "Plain light grey background, no text.")
 
 
 def mannequin_strip(body, scale=6, gap=24):
@@ -103,6 +111,8 @@ def report(path):
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("body", nargs="?"); ap.add_argument("--seeds", default="1")
     ap.add_argument("--measure", help="only measure this design sheet")
+    ap.add_argument("--style", default="detailed", choices=["detailed", "simple"],
+                    help="simple: thick dark outlines, flat colours, no small details, made to survive the shrink to 48x64")
     a = ap.parse_args()
     if a.measure:
         report(a.measure); return
@@ -111,11 +121,12 @@ def main():
     strip = mannequin_strip(a.body); sp = os.path.join(settings.WORK, f"mannequin_{a.body}.png"); strip.save(sp)
     settings.need_comfy(); os.makedirs(os.path.join(CIN, "sprite_forge"), exist_ok=True)
     shutil.copy(sp, os.path.join(CIN, "sprite_forge", os.path.basename(sp)))
-    prompt = PROMPT.format(views=", ".join(v for _, v in ORDER[:3]) + " and the " + ORDER[3][1], desc=character.DESCRIPTION)
+    prompt = (SIMPLE if a.style == "simple" else PROMPT).format(views=", ".join(v for _, v in ORDER[:3]) + " and the " + ORDER[3][1], desc=character.DESCRIPTION)
     for seed in [int(s) for s in a.seeds.split(",")]:
-        t, o = wait(post(qwen_graph(f"sprite_forge/{os.path.basename(sp)}", prompt, seed, f"sprite_forge/design_{a.body}_s{seed}")))
+        name = f"design_{a.body}{'_simple' if a.style == 'simple' else ''}_s{seed}"
+        t, o = wait(post(qwen_graph(f"sprite_forge/{os.path.basename(sp)}", prompt, seed, f"sprite_forge/{name}")))
         i = o["51"]["images"][0]
-        out = os.path.join(settings.WORK, f"design_{a.body}_s{seed}.png")
+        out = os.path.join(settings.WORK, name + ".png")
         shutil.copy(os.path.join(COUT, i.get("subfolder", ""), i["filename"]), out)
         print(f"seed {seed}: {t:.0f} s -> {out}")
         report(out)
