@@ -1,14 +1,12 @@
 # Third-party notices and credits
 
-sprite-forge's own code is MIT-licensed (`LICENSE`). It bundles **one** piece of third-party code; everything else below is
-software or a model you install yourself. Each keeps its own licence, and those terms apply to your use of it and of what it
+sprite-forge's code is MIT-licensed (`LICENSE`) and bundles no third-party code; everything below is software or a model you
+install yourself, or an idea we credit. Each keeps its own licence, and those terms apply to your use of it and of what it
 generates. This file is a summary to help you find them, not legal advice; the linked licence texts are what count.
 
 ## Code included in this repository
 
-| Component | Where | Licence | Notes |
-|---|---|---|---|
-| sprite-gen, `_dominant_block_color` detail bias | `pixelops.py` (`_dark_minority`) | Apache-2.0, Copyright 2026 Alex Kim ([aldegad/sprite-gen](https://github.com/aldegad/sprite-gen)) | Adapted and modified (see the function's docstring). Licence text: `LICENSES/Apache-2.0.txt`. |
+None: all code in this repository is sprite-forge's own (MIT).
 
 ## Methods and ideas (no code copied)
 

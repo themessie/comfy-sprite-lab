@@ -6,8 +6,5 @@ MiniMax H3 is licensed under the MiniMax H3 Community License Agreement.
 Copyright © 2026 MiniMax. All Rights Reserved.
 https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE
 
-pixelops.py contains code adapted from sprite-gen (https://github.com/aldegad/sprite-gen),
-Copyright 2026 Alex Kim, licensed under the Apache License, Version 2.0 (LICENSES/Apache-2.0.txt).
-
 The example images in examples/ are AI-generated (Qwen-Image 2.1, Wan 2.2); none were made with MiniMax H3. See THIRD_PARTY_NOTICES.md for all third-party software,
 models and their terms.

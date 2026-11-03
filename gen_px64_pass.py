@@ -60,7 +60,7 @@ def phase_down(im):
             if best is None or v < best[0]:
                 best = (v, ox, oy)
     _, ox, oy = best
-    small = kcentroid_down(im.crop((ox, oy, im.width, im.height)), K, detail_bias=True)
+    small = kcentroid_down(im.crop((ox, oy, im.width, im.height)), K)
     full = Image.new("RGB", (W // K, H // K), h3.GREY); full.paste(small, (0, 0))
     return full.crop((PAD, PAD, PAD + CW, PAD + CH)), (ox, oy)
 

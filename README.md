@@ -71,7 +71,7 @@ python sheet_cleanup.py mara_walk_rpg mara_final --thin --orphans --silhouette -
 
 ¹ Measured in the first round, whose start images had the bug described below; the relative effects are likely to hold.
 
-Downstream defaults: k-centroid ÷8 with true colours and no detail bias; `sheet_post.py --colors 32`; `sheet_cleanup.py --thin
+Downstream defaults: k-centroid ÷8 with true colours; `sheet_post.py --colors 32`; `sheet_cleanup.py --thin
 --orphans --silhouette --headlock --selout`. The SD 1.5 pixel pass (`gen_px64_pass.py`) is optional on this route and only added noise
 on simple designs (denoise 0.35 / 0.45, with or without PixelOE).
 
@@ -184,8 +184,7 @@ as the downscaler) and `ink_align.py` (direct ÷6 at the window with the most ou
 
 ## Licences and credits
 
-- **Code:** MIT (`LICENSE`), except the detail-bias function in `pixelops.py`, adapted from
-  [sprite-gen](https://github.com/aldegad/sprite-gen) (Copyright 2026 Alex Kim, Apache-2.0, `LICENSES/Apache-2.0.txt`). See `NOTICE`.
+- **Code:** MIT (`LICENSE`). See `NOTICE`.
 - **Credits:** k-centroid downscaling after Astropulse (Retro Diffusion); outline expansion by
   [PixelOE](https://github.com/KohakuBlueleaf/PixelOE) (KohakuBlueleaf); pixel fixes and exports with
   [pxl](https://github.com/crsolver/claude-pxl) (crsolver); Wan runs through Kijai's WanVideoWrapper; everything runs in

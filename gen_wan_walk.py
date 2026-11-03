@@ -8,7 +8,7 @@ gait is read from the leg spread (width of the lowest fifth of the figure, plus 
 stride, the opposite stride half a gait period later, and the most closed pose between them become columns 1, 3 and 0 (column 2 =
 column 0). Writes work/<tag>_frames/r<row>_c<col>.png for gen_px64_pass.py --frames, and work/<tag>_wan_r<row>.png contact strips.
 
-Also writes work/<tag>_1x.png (each picked frame /8 directly: k-centroid with true colours, no detail bias) for sheet_post.py.
+Also writes work/<tag>_1x.png (each picked frame /8 directly: k-centroid with true colours) for sheet_post.py.
 With a simple design (make_design_sheet.py --style simple) this direct /8 beat every pixel-pass variant in our tests, so the
 pass is optional on this route. Round two (--start-sheet) starts Wan from finished sprites at 8x instead. Rows in --high-steps (default front and back, whose walks
 barely move the legs) get a high-knee prompt.
@@ -217,7 +217,7 @@ def main():
     for r in [int(x) for x in a.rows.split(",")]:
         start = sprite_start(a.start_sheet, r) if a.start_sheet else view_image(a.design, VIEW_OF_ROW[r], a.ref_head, target_h, foot_y)
         if a.pixel_start and not a.start_sheet:
-            start = kcentroid_down(start, K, detail_bias=True).resize((W, H), Image.NEAREST)
+            start = kcentroid_down(start, K).resize((W, H), Image.NEAREST)
         sname = f"sprite_forge/{a.tag}_start_r{r}.png"; start.save(os.path.join(CIN, sname)); start.save(os.path.join(fd, f"start_r{r}.png"))
         walk = {0: a.walk0, 3: a.walk3}.get(r) or WALK[r]
         prompt = PROMPT.format(desc=character.DESCRIPTION, walk=walk, bg=BG_WORDS) + (HIGH if str(r) in a.high_steps.split(",") else "")
@@ -235,7 +235,7 @@ def main():
         cs = Image.new("RGB", (len(strip) * (W // 4), H // 4)); [cs.paste(im, (i * (W // 4), 0)) for i, im in enumerate(strip)]
         cs.save(os.path.join(D, f"{a.tag}_wan_r{r}.png"))
         for c, idx in enumerate((neutral, sa, neutral, sb)):                 # direct /8 (round two: no pixel pass needed)
-            small = kcentroid_down(Image.open(files[idx]).convert("RGB"), K, detail_bias=False, true_colour=True).crop((PAD, PAD, PAD + CW, PAD + CH))
+            small = kcentroid_down(Image.open(files[idx]).convert("RGB"), K, true_colour=True).crop((PAD, PAD, PAD + CW, PAD + CH))
             sheet.paste(small, (c * CW, r * CH))
         picks[r] = {"neutral": neutral, "stride_a": sa, "stride_b": sb, "spread": [round(float(v), 1) for v in s]}
         print(f"row {r}: {t:.0f} s, {len(files)} frames, neutral {neutral}, strides {sa} / {sb}", flush=True)
