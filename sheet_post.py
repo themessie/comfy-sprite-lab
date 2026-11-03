@@ -25,7 +25,9 @@ def main():
     H, W = im.shape[:2]; ch, cw = H // 4, W // 4
     edge = np.concatenate([im[0], im[-1], im[:, 0], im[:, -1]])
     bg = np.median(edge, 0)
-    near = np.abs(im - bg).max(-1) <= a.tol
+    magenta = bg[0] > 150 and bg[2] > 150 and bg[1] < 100          # gen_wan_walk.py's magenta key: test hue, not distance
+    key = ((im[..., 0] - im[..., 1] > 70) & (im[..., 2] - im[..., 1] > 70)) if magenta else None
+    near = key if magenta else np.abs(im - bg).max(-1) <= a.tol
     lab, _ = ndimage.label(near)
     border = np.zeros_like(near)
     for r in range(4):                      # every cell's frame touches background
@@ -33,7 +35,7 @@ def main():
     for c in range(4):
         border[:, c * cw] = border[:, (c + 1) * cw - 1] = True
     ids = np.unique(lab[border & near]); ids = ids[ids > 0]
-    clear = np.isin(lab, ids) | (np.abs(im - bg).max(-1) <= 6)
+    clear = np.isin(lab, ids) | (key if magenta else (np.abs(im - bg).max(-1) <= 6))   # magenta never belongs to the figure
     rgba = np.dstack([im, np.where(clear, 0, 255)]).astype(np.uint8)
     if a.colors:
         op = rgba[..., 3] > 0

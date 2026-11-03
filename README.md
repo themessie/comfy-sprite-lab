@@ -22,7 +22,7 @@ and outfit in every frame, and the motion of a proper walk cycle. Built on Comfy
 | # | Step | Script | What it does |
 |---|---|---|---|
 | 0 | Design sheet | `make_design_sheet.py --style simple` | Qwen-Image 2.1 dresses the base body's four standing views as your character: the same person from front, right, back and left. **Simple style**: thick dark outlines, flat colours, no small details, so it survives the shrink to 48×64. See [The design sheet](#the-design-sheet). |
-| 1 | Walk loops | `gen_wan_walk.py` | Per direction, Wan 2.2 image-to-video walks in place from that view and back to it (a loop). The gait is read from the leg spread; the most closed pose and the two strides become the 4 frames. Front and back walks get a high-knee prompt (they barely move the legs otherwise). |
+| 1 | Walk loops | `gen_wan_walk.py` | Per direction, Wan 2.2 image-to-video walks in place from that view and back to it (a loop), on a magenta canvas that is keyed out by hue. The 4 frames are picked from the gait: the most closed pose and the two strides (by leg spread for the sides, by foot lift for front and back). Front and back walks get a calm, small-steps prompt (see [Parameters](#parameters-gen_wan_walkpy) and the [sensitivity analysis](#sensitivity-analysis-the-front-walk)). |
 | 2 | Downscale ÷8 | (inside step 1) | Frames are made at exactly 8× the sprite (512×640 for 48×64 + 8 px margin); k-centroid per 8×8 block with true colours. |
 | 3 | Sheet post | `sheet_post.py --stand --colors 32` | Background removed, one 32-colour palette for the sheet, standing frame copied to column 2. |
 | 4 | Clean-up rules | `sheet_cleanup.py --thin ...` | Doubled outlines thinned to 1 px, specks merged, spikes/notches fixed, **head lock** (the standing head copied into the stride frames), selective outline. |
@@ -33,7 +33,7 @@ and outfit in every frame, and the motion of a proper walk cycle. Built on Comfy
 export SPRITE_FORGE_CHARACTER=mara                            # characters/mara.json
 python make_design_sheet.py Women01 --style simple --seeds 1,2,3,4   # pick one, set design_sheet in characters/mara.json
 python build_rig_sheet.py Men01 --grow 1.5                    # guide geometry (figure size, foot line) for step 1
-python gen_wan_walk.py mara_walk                              # 4 directions, about 3 min each on a 12 GB card
+python gen_wan_walk.py mara_walk --seed 2                     # 4 directions, about 3 min each on a 12 GB card
 python sheet_post.py mara_walk --stand --colors 32 --out mara_walk_rpg
 python sheet_cleanup.py mara_walk_rpg mara_final --thin --orphans --silhouette --headlock --selout
 ```
@@ -42,15 +42,69 @@ python sheet_cleanup.py mara_walk_rpg mara_final --thin --orphans --silhouette -
 
 - **The design decides most of it.** The same pipeline on a detailed design (freckles, knit texture, buttons) gives muddy faces at
   48×64; a design drawn for a tiny sprite (thick outlines, flat colours, big shapes) gives clean, readable frames.
-  ([comparison](examples/mara/cmp_detailed_vs_simple.png))
+  ([comparison](examples/mara/cmp_detailed_vs_simple.png); the detailed attempt is from the first round¹)
 - **Direct ÷8 beats every pixel-pass variant** on Wan frames of a simple design: the SD 1.5 + 8bitdiffuser pass that the H3 route
   needs only adds noise here (at 0.35 and more so at 0.45), and starting Wan from a pixelated image or adding the Wan 2.1 Pixel
-  Toolkit LoRA does not help either. ([12 variants](examples/mara/cmp_route_variants.png))
+  Toolkit LoRA does not help either. ([12 variants](examples/mara/cmp_route_variants.png), first round¹)
 - **k-centroid darkens**: a block half outline, half fill goes wholly to the winner, so outlines and dark areas grow; the colour
   rounding (`//8`) adds a little. True colours plus outline thinning undo most of it.
   ([comparison](examples/mara/cmp_downscale_darkening.png))
-- Wan keeps the facing direction in all four views (H3 sometimes turns the back view around), and its side strides are lively; its
-  front and back walks move the legs little unless asked for high knees.
+- Wan keeps the facing direction in all four views (H3 sometimes turns the back view around), and its side strides are lively. Its
+  front and back walks need the right prompt and picker (below).
+
+### Parameters (`gen_wan_walk.py`)
+
+| Option | Default | What it does, and what the tests showed |
+|---|---|---|
+| `--seed` | 1 | Matters for front and back walks: try 2–3 seeds and keep the best (Mara: seed 2). |
+| `--walk0` / `--walk3` | calm walk | The front / back walk phrase: a calm pace, small natural steps, arms close to the body, no jumping. |
+| `--high-steps` | none | Rows that get an extra "high knee lifts" sentence. No gain once the start image is right. |
+| `--pick` | auto | Frame picking: `lift` (one foot raised, little splay) for front/back, `spread` (widest step) for the sides. |
+| `--bg` | magenta | Canvas background, keyed out afterwards by hue (red and blue well above green), because Wan lets it drift from pink to purple. Grey looked like white clothing and was keyed away with it; use `grey` or `green` for pink or magenta characters. |
+| `--frames` | 33 | Clip length. 49 gave a slower, steadier walk (less colour drift) but no better poses.¹ |
+| `--steps`, `--shift` | 4, 5 | Sampler steps (the lightx2v LoRAs are 4-step) and shift. 8 steps or shift 8 gave less foot lift.¹ |
+| `--ref-head` | 0.8 | Shrinks the design's head in the start image. 1.0 gave a narrower stance but a bigger head.¹ |
+| `--rows` | 0,1,2,3 | Redo some rows; they merge into the existing sheet. |
+| `--repick` | off | Pick frames again from this tag's existing clips, without running Wan. |
+| `--start-sheet` | – | Round two: start from finished standing sprites (×8). |
+| `--pixel-start`, `--pixel-lora` | off | Pixelate the start image / add the Wan 2.1 Pixel Toolkit LoRA. No gain in our tests. |
+
+¹ Measured in the first round, whose start images had the bug described below; the relative effects are likely to hold.
+
+Downstream defaults: k-centroid ÷8 with true colours and no detail bias; `sheet_post.py --colors 32`; `sheet_cleanup.py --thin
+--orphans --silhouette --headlock --selout`. The SD 1.5 pixel pass (`gen_px64_pass.py`) is optional on this route and only added noise
+on simple designs (denoise 0.35 / 0.45, with or without PixelOE).
+
+### Sensitivity analysis: the front walk
+
+Front walks were the weak spot, so we varied one thing at a time on Mara's front row and measured each clip with `sensitivity.py`:
+**lift** = how far one foot rises above the other, **splay** = sideways leg spread, **arms** = arm span, **bob** = change in figure
+height, all as a share of the figure height; **drift** = how much the figure's colours change against the first frame (Lab distance).
+A good front walk has high lift and low splay, arms, bob and drift.
+
+| Run (correct start images, magenta background) | Lift ↑ | Splay ↓ | Arms ↓ | Bob ↓ | Drift ↓ |
+|---|---|---|---|---|---|
+| prompt: high knees | 0.059 | 0.33 | 0.59 | 0.033 | 10.8 |
+| prompt: plain walk | 0.087 | 0.44 | 0.59 | 0.045 | 11.4 |
+| prompt: calm, seed 1 | 0.059 | 0.33 | 0.58 | 0.040 | 10.3 |
+| prompt: RPG step | 0.059 | 0.34 | 0.56 | 0.061 | 9.8 |
+| calm, seed 2 (chosen) | 0.061 | 0.34 | 0.53 | 0.045 | 5.2 |
+| calm, seed 3 | 0.041 | 0.33 | 0.53 | 0.035 | 6.7 |
+
+- **The start image mattered most.** The first round of runs looked like hopping or shuffling because the start image was wrong: the
+  design's white blouse had been cut out together with the sheet's light-grey background, so Wan started from (and drew) a grey
+  blouse, which then got keyed away. With that fixed (only background connected to the border is removed) and a magenta canvas,
+  every prompt gives a reasonable walk.
+- **Prompt:** a modest effect once the input is right. "Plain walk" lifts the feet most but also splays the legs most; the calm prompt
+  keeps the stance narrow.
+- **Seed:** seeds 2 and 3 drift about half as much as seed 1; calm + seed 2 has the least drift and the narrowest arms, and looked
+  best by eye. That is Mara's sheet.
+- **Picking matters as much as generating:** the widest-leg frames of a front walk are splayed poses; picking by foot lift finds real
+  steps (the picture below shows both).
+
+<img src="examples/mara/front_sensitivity_walk.gif" width="760">
+
+*The corrected front-walk runs, frames picked by foot lift. Stills with both pickers: [front_sensitivity.png](examples/mara/front_sensitivity.png).*
 
 ## The H3 route
 
