@@ -3,5 +3,6 @@
   "description": "a chibi young woman who sells newspapers, with a short red bob haircut, wearing a green flat cap, a mustard-yellow knitted cardigan over a white blouse, a brown knee-length skirt, dark green stockings and brown lace-up boots",
   "design_sheet": "examples/mara/mara_design.png",
   "front_crop": null,
-  "neck": null
+  "neck": null,
+  "design_diagonals": "examples/mara/mara_design_diagonals.png"
 }

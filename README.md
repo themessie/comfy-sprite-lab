@@ -106,6 +106,66 @@ A good front walk has high lift and low splay, arms, bob and drift.
 
 *The corrected front-walk runs, frames picked by foot lift. Stills with both pickers: [front_sensitivity.png](examples/mara/front_sensitivity.png).*
 
+## Any animation: `forge.py`
+
+The same Wan route, generalised: **any animation, 1 to 8 directions, any frame count, any sprite size**, one command.
+
+| Walk (8 frames) | Idle (6) | Run (8) | Wave (one-shot, 8) |
+|---|---|---|---|
+| <img src="examples/mara/forge/walk.gif" width="200"> | <img src="examples/mara/forge/idle.gif" width="200"> | <img src="examples/mara/forge/run.gif" width="200"> | <img src="examples/mara/forge/wave.gif" width="200"> |
+
+| 8 directions | 64×96 |
+|---|---|
+| <img src="examples/mara/forge/walk_8dir.gif" width="420"> | <img src="examples/mara/forge/walk_64x96.gif" width="260"> |
+
+```bash
+export SPRITE_FORGE_CHARACTER=mara
+python forge.py walk                                             # 8 frames, down/left/right/up, 48x64
+python forge.py idle --frames 6
+python forge.py wave --dirs down
+python forge.py walk --cell 64x96 --dirs down,right
+python forge.py walk --dirs down,down_left,left,up_left,up,up_right,right,down_right   # needs design_diagonals
+python forge.py walk --frames 12                                 # re-cut from the cached clips: no GPU time
+```
+
+1. **Start image per direction:** the view from the design sheet (down, right, up, left) or from the character's three-quarter sheet
+   (`make_design_sheet.py --diagonals` makes one: front-left, front-right, back-left, back-right), head shrunk (`--ref-head`), placed
+   on a magenta canvas at 8× the cell (+ margin).
+2. **One Wan 2.2 clip per direction:** the animation's motion text (per direction if given), the facing, and "a seamless loop" or
+   "starts and ends in the same pose"; start image = end image.
+3. **Frame selection:** loops find the period at which the figure repeats best (background blanked: Wan's magenta drifts) and take N
+   frames evenly over one cycle; if nothing repeats clearly, N frames over the whole clip (it loops by construction). One-shots take N
+   frames evenly over the clip.
+4. **Pixelation:** k-centroid ÷8 with true colours (`--pixel direct`), or a smooth downscale (`--pixel none`).
+5. **Finish:** magenta key, one palette (`--colors`), outline thinning, specks, spikes, head lock (if the animation sets it), selective
+   outline.
+6. **Export** to `work/forge/<tag>/`: `<tag>_sheet.png` (rows = directions, columns = frames), `<tag>.json` (Aseprite-style frames
+   with durations from the fps, one frame tag per direction), a GIF per direction and one with all directions.
+
+Every clip is cached (`clips.json`, keyed by direction, seed, size and the exact prompt), so changing the frame count or pixel mode
+later costs no GPU time, while editing an animation's wording renders only the directions it changes (`--regen` renders everything
+again). `--mirror-left` builds left-facing rows by mirroring the right-facing ones (half the Wan time; wrong for
+asymmetric outfits).
+
+**Animations** are small JSON files in `animations/`:
+
+```json
+{ "name": "walk", "loop": true, "frames": 8, "fps": 10, "clip_frames": 33,
+  "motion": "walking in place at a calm pace with small natural steps, ...",
+  "motion_by_dir": { "left": "walking in place with clear, alternating steps, ...", "right": "..." },
+  "headlock": true }
+```
+
+`loop`: a looping animation (walk, run, idle) or a one-shot that returns to the start pose (wave, attack). `motion_by_dir` overrides
+the motion for some directions (front and back walks need calmer wording than side walks). `headlock` copies the first frame's head
+into the others; leave it off for animations that move the head.
+
+**What the test matrix showed (Mara):** walk, idle, run and wave all work in four directions; the 8-direction walk works from Qwen's
+three-quarter views; 64×96 gives clearly more detail; 32×48 is fine; **32×32 is too small for this chibi** (about 27 px tall, thin and
+noisy): better for rounder, simpler characters. The front run first came out with the hands crossing the chest, which turns
+into noise at 48×64; `motion_by_dir` for front and back ("arms bent at the sides, the hands never cross in front of the chest") and a
+seed check fixed it, as with the walk. About 3 minutes per direction on a 12 GB card (2.3 at 32×32, 3.6 at 64×96).
+
 ## The H3 route
 
 Higher quality where you may use it: MiniMax H3 swaps your character onto an RPG Maker base-body walk, so poses follow the guide
@@ -145,6 +205,7 @@ outlines, flat colours, big simple shapes, no small details**.
 ```bash
 python make_design_sheet.py Women01 --style simple --seeds 1,2,3,4   # -> work/design_Women01_simple_s<seed>.png, each measured
 python make_design_sheet.py --measure my_drawing.png                 # measure a design sheet you drew yourself
+python make_design_sheet.py --diagonals --seeds 1,2,3                # three-quarter views for 8 directions (set design_diagonals)
 ```
 
 It puts the base body's four standing frames side by side as a mannequin, and Qwen-Image 2.1 (edit, Turbo 8-step LoRA) dresses it as
@@ -152,7 +213,7 @@ the character's description in one call. Seeds differ a lot: make a few and pick
 ([detailed](examples/mara/cmp_detailed_designs.png) vs [simple](examples/mara/cmp_simple_designs.png) style).
 
 **Characters** live in `characters/<name>.json`: `description` (one line, used in every prompt), `design_sheet`, and optionally
-`front_crop` and `neck` (measured from the sheet when left out). Pick one with `"character"` in `settings.json` or
+`design_diagonals` (three-quarter views for 8 directions), `front_crop` and `neck` (measured from the sheet when left out). Pick one with `"character"` in `settings.json` or
 `SPRITE_FORGE_CHARACTER`.
 
 ## Requirements

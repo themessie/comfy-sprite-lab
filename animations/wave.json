@@ -1,0 +1,9 @@
+{
+  "name": "wave",
+  "loop": false,
+  "frames": 8,
+  "fps": 8,
+  "clip_frames": 33,
+  "motion": "raises one hand above the shoulder, waves it from side to side twice, then lowers the arm back to the starting pose",
+  "headlock": false
+}

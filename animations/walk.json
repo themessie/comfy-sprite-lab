@@ -1,0 +1,13 @@
+{
+  "name": "walk",
+  "loop": true,
+  "frames": 8,
+  "fps": 10,
+  "clip_frames": 33,
+  "motion": "walking in place at a calm pace with small natural steps, arms hanging close to the body and swinging a little, the body stays upright, no jumping, no hopping",
+  "motion_by_dir": {
+    "left": "walking in place with clear, alternating steps: one leg forward while the other pushes off behind, feet lifting off the ground, arms swinging opposite to the legs",
+    "right": "walking in place with clear, alternating steps: one leg forward while the other pushes off behind, feet lifting off the ground, arms swinging opposite to the legs"
+  },
+  "headlock": true
+}

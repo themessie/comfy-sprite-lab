@@ -1,0 +1,13 @@
+{
+  "name": "run",
+  "loop": true,
+  "frames": 8,
+  "fps": 12,
+  "clip_frames": 33,
+  "motion": "running in place with long, fast strides: knees come up, arms pump back and forth, both feet leave the ground in the middle of each stride, the body leans slightly forward",
+  "headlock": true,
+  "motion_by_dir": {
+    "down": "running in place toward the viewer: quick light steps, knees come up, arms bent at the elbows at the sides of the body, pumping forward and back; the hands never cross in front of the chest",
+    "up": "running in place away from the viewer: quick light steps, knees come up, arms bent at the elbows at the sides of the body, pumping forward and back; the hands never cross in front of the chest"
+  }
+}

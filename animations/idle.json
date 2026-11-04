@@ -1,0 +1,9 @@
+{
+  "name": "idle",
+  "loop": true,
+  "frames": 6,
+  "fps": 6,
+  "clip_frames": 33,
+  "motion": "standing still and breathing calmly: the chest rises and falls a little, a slight sway of the body, feet stay planted, arms relaxed at the sides",
+  "headlock": false
+}

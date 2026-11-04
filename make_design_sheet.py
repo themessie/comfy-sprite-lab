@@ -9,6 +9,7 @@ Only the front view feeds the pipeline (round one's H3 reference, and its colour
 views are for you and for other tools.
 
 Usage: python make_design_sheet.py Men01 [--seeds 1,2,3] [--style simple]   -> work/design_<body>[_simple]_s<seed>.png + measurements
+       python make_design_sheet.py --diagonals [--seeds 1,2]   -> work/design_<character>_diag_s<seed>.png (three-quarter views)
        python make_design_sheet.py --measure path/to/your_sheet.png
 """
 import argparse, os, shutil
@@ -32,6 +33,13 @@ SIMPLE = ("This is a character turnaround sheet of a mannequin, the same figure 
           "parts, large flat areas of colour with at most two tones per material, simple big shapes, big simple eyes, a simple mouth. "
           "No small details: no freckles, no stitching, no buttons, no laces, no fabric texture, no thin lines, no gradients. "
           "Plain light grey background, no text.")
+
+DIAGONALS = ("This is a character turnaround sheet: the same character four times, front, right, back and left. Draw this exact same "
+             "character four times again, now in three-quarter views, from left to right: front-left (turned toward the viewer and to "
+             "the left), front-right (turned toward the viewer and to the right), back-left (seen from behind and turned to the left, "
+             "no face visible) and back-right (seen from behind and turned to the right, no face visible). Keep exactly the same size, "
+             "proportions, outfit, colours, outline thickness and drawing style as the input, standing straight, arms at the sides, "
+             "evenly spaced side by side. Plain light grey background, no text.")
 
 
 def mannequin_strip(body, scale=6, gap=24):
@@ -111,13 +119,25 @@ def report(path):
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("body", nargs="?"); ap.add_argument("--seeds", default="1")
     ap.add_argument("--measure", help="only measure this design sheet")
+    ap.add_argument("--diagonals", action="store_true",
+                    help="from the character's design sheet: four three-quarter views (front-left, front-right, back-left, back-right), for 8 directions")
     ap.add_argument("--style", default="detailed", choices=["detailed", "simple"],
                     help="simple: thick dark outlines, flat colours, no small details, made to survive the shrink to 48x64")
     a = ap.parse_args()
     if a.measure:
         report(a.measure); return
+    if a.diagonals:
+        settings.need_comfy(); os.makedirs(os.path.join(CIN, "sprite_forge"), exist_ok=True)
+        src = os.path.join(CIN, "sprite_forge", f"{character.NAME}_design.png"); shutil.copy(character.DESIGN_SHEET, src)
+        for seed in [int(s) for s in a.seeds.split(",")]:
+            name = f"design_{character.NAME}_diag_s{seed}"
+            t, o = wait(post(qwen_graph(f"sprite_forge/{character.NAME}_design.png", DIAGONALS, seed, f"sprite_forge/{name}")))
+            i = o["51"]["images"][0]; out = os.path.join(settings.WORK, name + ".png")
+            shutil.copy(os.path.join(COUT, i.get("subfolder", ""), i["filename"]), out)
+            print(f"seed {seed}: {t:.0f} s -> {out}"); report(out)
+        return
     if not a.body:
-        raise SystemExit("give a base body name (e.g. Men01) or --measure FILE")
+        raise SystemExit("give a base body name (e.g. Men01), --diagonals, or --measure FILE")
     strip = mannequin_strip(a.body); sp = os.path.join(settings.WORK, f"mannequin_{a.body}.png"); strip.save(sp)
     settings.need_comfy(); os.makedirs(os.path.join(CIN, "sprite_forge"), exist_ok=True)
     shutil.copy(sp, os.path.join(CIN, "sprite_forge", os.path.basename(sp)))
