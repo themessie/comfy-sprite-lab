@@ -144,7 +144,7 @@ def export(sheet, tag, out, dirs, n, cw, ch, fps):
         for c in range(n):
             frames[f"{tag}_{dname}_{c}"] = {"frame": {"x": c * cw, "y": r * ch, "w": cw, "h": ch}, "duration": round(1000 / fps)}
         tags.append({"name": dname, "from": r * n, "to": r * n + n - 1, "direction": "forward"})
-    json.dump({"frames": frames, "meta": {"app": "sprite-forge", "image": tag + "_sheet.png", "size": {"w": sheet.width, "h": sheet.height},
+    json.dump({"frames": frames, "meta": {"app": "comfy-sprite-lab", "image": tag + "_sheet.png", "size": {"w": sheet.width, "h": sheet.height},
                                           "frameTags": tags}}, open(os.path.join(out, tag + ".json"), "w"), indent=1)
     BG = (52, 58, 66); S = max(2, 256 // ch)
     rows = []

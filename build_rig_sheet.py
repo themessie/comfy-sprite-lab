@@ -1,5 +1,5 @@
 """Guide ("rig") sheet from an RPG Maker XP style base-body walk sheet (4x4 frames, rows down/left/right/up), re-laid onto a 32x48 cell grid,
-or 48x64 with --grow 1.5 (the H3 guide in sprite-forge: python build_rig_sheet.py Men01 --grow 1.5 -> work/rig_Men01_body_big_1x.png).
+or 48x64 with --grow 1.5 (the H3 guide in comfy-sprite-lab: python build_rig_sheet.py Men01 --grow 1.5 -> work/rig_Men01_body_big_1x.png).
 Written for an earlier MOSS img2img route; the other modes are kept but the pipeline only uses --mode body (default).
 1 sprite px = 1 logical px = 8 canvas px, so the rig sits exactly on the pixel-art LoRA's grid. Keeps each frame's position
 inside its cell (the walk bob survives); flat light-grey background like the generation prompt.
@@ -11,8 +11,8 @@ Also writes <tag>_mask.png, a Differential Diffusion strength map: background an
 coat hem down) --legs, so the stride survives a high overall denoise.
 Usage: python build_rig_sheet.py Men01 [--mode body|silhouette|owens|costume] [--coat 21] [--upper 1.0 --legs 0.55 [--blur 1.5]] [--grow 1.5]
 Also writes <tag>_parts.json: per frame the figure, head, hands, legs and feet boxes (logical px on the output sheet), found on the
-base body (used by the earlier MOSS route, not by sprite-forge).
---grow: scale every frame (nearest) into bigger cells; 1.5 gives the 48x64 cells sprite-forge uses.
+base body (used by the earlier MOSS route, not by comfy-sprite-lab).
+--grow: scale every frame (nearest) into bigger cells; 1.5 gives the 48x64 cells comfy-sprite-lab uses.
 """
 import argparse, json, os
 import numpy as np

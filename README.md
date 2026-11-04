@@ -1,4 +1,4 @@
-# sprite-forge
+# comfy-sprite-lab
 
 Turn a character design into a **48×64, 4-direction RPG walk sheet that is real pixel art**: every pixel on the grid, the same face
 and outfit in every frame, and the motion of a proper walk cycle. Built on ComfyUI, with two routes:

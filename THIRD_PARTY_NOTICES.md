@@ -1,12 +1,12 @@
 # Third-party notices and credits
 
-sprite-forge's code is MIT-licensed (`LICENSE`) and bundles no third-party code; everything below is software or a model you
+comfy-sprite-lab's code is MIT-licensed (`LICENSE`) and bundles no third-party code; everything below is software or a model you
 install yourself, or an idea we credit. Each keeps its own licence, and those terms apply to your use of it and of what it
 generates. This file is a summary to help you find them, not legal advice; the linked licence texts are what count.
 
 ## Code included in this repository
 
-None: all code in this repository is sprite-forge's own (MIT).
+None: all code in this repository is comfy-sprite-lab's own (MIT).
 
 ## Methods and ideas (no code copied)
 
@@ -20,7 +20,7 @@ None: all code in this repository is sprite-forge's own (MIT).
 
 | Software | Licence | Used for |
 |---|---|---|
-| [ComfyUI](https://github.com/comfyanonymous/ComfyUI) | GPL-3.0 | Runs all models; sprite-forge only talks to it over its HTTP API |
+| [ComfyUI](https://github.com/comfyanonymous/ComfyUI) | GPL-3.0 | Runs all models; comfy-sprite-lab only talks to it over its HTTP API |
 | [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper) (Kijai) | see the repository | Runs Wan 2.2 for the Wan route (`gen_wan_walk.py`) |
 | [PixelOE](https://github.com/KohakuBlueleaf/PixelOE) (KohakuBlueleaf, Shin-Ying Yeh) | Apache-2.0 | Outline expansion before the pixel pass (`gen_px64_pass.py --oe`, `gen_pixeloe.py`) |
 | [pxl](https://github.com/crsolver/claude-pxl) (crsolver) | MIT | Pixel fixes as code and game exports (`sheet_to_pxl.py`) |
