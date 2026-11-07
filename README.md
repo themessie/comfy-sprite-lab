@@ -215,6 +215,37 @@ python recolor.py mara_walk_48x64 --name crimson --hue 65-80:22:1.2:-0.2 --hue 1
 [comfyui-2d-character-pipeline](https://github.com/mor-o/comfyui-2d-character-pipeline) (mor-o), which tints greyscale sheets at
 runtime; palette swapping is the pixel-art way to do it.
 
+**Posed start frames: real steps toward and away from the viewer.** Wan copies its start pose. From Mara standing still, the
+front and back walks shuffle (the feet barely lift) and the front run crosses its arms, unless the wording and the seed are lucky.
+`pose_start.py` draws an OpenPose skeleton at the character's proportions (mid-step, or mid-stride for a run; back views swap
+left and right and drop the face), and Qwen-Image 2.1 redraws the character in that pose, with the skeleton as its second input
+image (no ControlNet; the Fun ControlNet-Union we also tried left dark blocks on the skirt). That frame becomes Wan's start and end
+frame (`--start`), so Wan has to complete a real step cycle to get back to it.
+
+```bash
+python pose_start.py --dir down --pose walk_step --seeds 2,3        # ~20 s per seed; pick one (work/forge/poses/)
+python pose_start.py --dir up --pose run_stride --seeds 3,4
+python forge.py walk --start down=work/forge/poses/mara_walk_step_down_s3.png --start up=work/forge/poses/mara_walk_step_up_s3.png
+```
+
+<img src="examples/mara/forge/pose_starts.png" width="800">
+
+*Skeleton on Mara's front view, then the posed starts: walk front and back, run front and back.*
+
+| Walk, posed front and back | Run, posed front and back |
+|---|---|
+| <img src="examples/mara/forge/walk_posed.gif" width="380"> | <img src="examples/mara/forge/run_posed.gif" width="380"> |
+
+<img src="examples/mara/forge/posed_vs_current.gif" width="640">
+
+*Current (standing start) vs posed start, in pairs: walk back, run front, run back, walk front.* All four now take real steps;
+both seeds tried for the front walk worked. Two things to check: on back views Qwen first painted the cardigan's front (buttons,
+blouse) on her back, which a sentence about the back of the clothes fixed; and our flicker measure rises (walk back .046 → .117,
+run front .030 → .218) because legs that really move change every frame, so it no longer only measures noise. The idea of
+posing the keyframe from a skeleton comes from
+[comfyui-2d-character-pipeline](https://github.com/mor-o/comfyui-2d-character-pipeline) (workflow 1); the skeletons and the
+code are our own.
+
 **What the test matrix showed (Mara):** walk, idle, run and wave all work in four directions; the 8-direction walk works from Qwen's
 three-quarter views; 64×96 gives clearly more detail; 32×48 is fine; **32×32 is too small for this chibi** (about 27 px tall, thin and
 noisy): better for rounder, simpler characters. The front run first came out with the hands crossing the chest, which turns

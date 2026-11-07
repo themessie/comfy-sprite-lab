@@ -76,6 +76,16 @@ def cut_view(sheet, i, head):
     return fig
 
 
+def cut_posed(path):
+    """The figure of a posed start image (pose_start.py: the character on magenta) as RGBA: magenta keyed, largest blob kept."""
+    a = np.asarray(Image.open(path).convert("RGB")); m = ~magentaish(a)
+    lab, n = ndimage.label(m)
+    if n > 1:
+        m = lab == 1 + int(np.argmax(ndimage.sum(m, lab, range(1, n + 1))))
+    fig = Image.fromarray(np.dstack([a, (m * 255).astype(np.uint8)]), "RGBA")
+    return fig.crop(fig.getbbox())
+
+
 def start_image(fig, cw, ch, margin, bgc):
     """The figure on the Wan canvas ((cell + 2 x margin) x 8): about 84 % of the cell tall, centred, feet 2 sprite px above the cell
     bottom (the proportions the 48x64 guide used)."""
@@ -211,6 +221,7 @@ def main():
                     help="character: one palette for all animations of the character (work/forge/palette_<name>.json; built from "
                          "this animation if missing); sheet: one median-cut palette per sheet (the old way)")
     ap.add_argument("--hold", type=float, default=0.02, help="temporal hold in OKLab distance (0 = off)")
+    ap.add_argument("--start", action="append", help="DIR=posed.png: start (and end) image for a direction, e.g. from pose_start.py")
     ap.add_argument("--temporal", type=float, default=0,
                     help="blend each frame with its clip neighbours where they agree (colour-difference scale, e.g. 24; 0 = off)")
     ap.add_argument("--smooth", type=int, default=0, help="passes of the shade-limited majority filter inside filled areas (0 = off)")
@@ -238,7 +249,7 @@ def main():
     final, flick = finish(sheet, cw, ch, a.colors, key, anim.get("headlock", False), pal, a.hold, a.smooth)
     export(final, tag, out, dirs, n, cw, ch, anim.get("fps", 8), pal)
     json.dump({"anim": a.anim, "dirs": dirs, "frames": n, "cell": [cw, ch], "margin": a.margin, "pixel": a.pixel, "seed": a.seed,
-               "bg": a.bg, "ref_head": a.ref_head, "mirror_left": a.mirror_left, "palette": a.palette, "hold": a.hold, "temporal": a.temporal, "smooth": a.smooth,
+               "bg": a.bg, "ref_head": a.ref_head, "mirror_left": a.mirror_left, "palette": a.palette, "hold": a.hold, "start": a.start, "temporal": a.temporal, "smooth": a.smooth,
                "flicker": dict(zip(dirs, flick)), "picks": {d: v[0] for d, v in picked.items()}},
               open(os.path.join(out, tag + "_settings.json"), "w"), indent=1)
     print(tag, "flicker per direction", dict(zip(dirs, flick)), "->", out)
@@ -263,6 +274,7 @@ def build_sheet(anim_name, a):
     W, H = (cw + 2 * a.margin) * K, (ch + 2 * a.margin) * K
     settings.need_comfy(); os.makedirs(os.path.join(CIN, "sprite_forge"), exist_ok=True)
     picked = {}
+    starts = dict(s.split("=", 1) for s in (a.start or []))
     for dname in dirs:
         if a.mirror_left and dname in ("left", "up_left", "down_left") and dname.replace("left", "right") in dirs:
             continue
@@ -270,10 +282,13 @@ def build_sheet(anim_name, a):
         prompt = PROMPT.format(desc=character.DESCRIPTION, facing=FACING[dname], motion=motion, loop=LOOP[anim["loop"]], bg=bg_words)
         # the key includes the prompt: editing an animation's wording renders that direction again instead of reusing a stale clip
         key = f"{dname}|{a.seed}|{a.bg}|{cw}x{ch}|{a.margin}|{a.ref_head}|{hashlib.sha1(prompt.encode()).hexdigest()[:10]}"
+        posed = starts.get(dname)
+        if posed:                                        # a posed start image (pose_start.py) replaces the design-sheet view
+            key += "|start:" + hashlib.sha1(open(posed, "rb").read()).hexdigest()[:10]
         files = cache.get(key)
         if a.regen or not files or not all(os.path.exists(f) for f in files):
             sheet_path, idx = (character.DESIGN_SHEET, VIEW[dname][1]) if VIEW[dname][0] == "main" else (character.DESIGN_DIAGONALS, VIEW[dname][1])
-            start = start_image(cut_view(sheet_path, idx, a.ref_head), cw, ch, a.margin, bgc)
+            start = start_image(cut_posed(posed) if posed else cut_view(sheet_path, idx, a.ref_head), cw, ch, a.margin, bgc)
             sname = f"sprite_forge/{tag}_{dname}_start.png"; start.save(os.path.join(CIN, sname)); start.save(os.path.join(out, f"start_{dname}.png"))
             t, o = wait(post(wan_graph(sname, prompt, a.seed, f"sprite_forge/{tag}_{dname}/f", anim.get("clip_frames", 33), width=W, height=H)))
             files = sorted(os.path.join(COUT, i.get("subfolder", ""), i["filename"]) for i in o["13"]["images"])
