@@ -126,6 +126,7 @@ python forge.py wave --dirs down
 python forge.py walk --cell 64x96 --dirs down,right
 python forge.py walk --dirs down,down_left,left,up_left,up,up_right,right,down_right   # needs design_diagonals
 python forge.py walk --frames 12                                 # re-cut from the cached clips: no GPU time
+python forge.py walk,idle,run,wave --build-palette               # one palette for all of the character's animations
 ```
 
 1. **Start image per direction:** the view from the design sheet (down, right, up, left) or from the character's three-quarter sheet
@@ -137,10 +138,12 @@ python forge.py walk --frames 12                                 # re-cut from t
    frames evenly over one cycle; if nothing repeats clearly, N frames over the whole clip (it loops by construction). One-shots take N
    frames evenly over the clip.
 4. **Pixelation:** k-centroid ÷8 with true colours (`--pixel direct`), or a smooth downscale (`--pixel none`).
-5. **Finish:** magenta key, one palette (`--colors`), outline thinning, specks, spikes, head lock (if the animation sets it), selective
-   outline.
+5. **Finish:** magenta key, the character palette with temporal hold (below), outline thinning, specks, spikes, head lock (if the
+   animation sets it), selective outline. The flicker of each direction is printed and stored in `<tag>_settings.json`.
 6. **Export** to `work/forge/<tag>/`: `<tag>_sheet.png` (rows = directions, columns = frames), `<tag>.json` (Aseprite-style frames
-   with durations from the fps, one frame tag per direction), a GIF per direction and one with all directions.
+   with durations from the fps, one frame tag per direction), a GIF per direction and one with all directions; with the character
+   palette also `<tag>_indexed.png` (index 0 transparent, palette colour i at index i + 1) and `<tag>_palette.png` (a 1-pixel strip
+   of the palette) for palette-swap shaders.
 
 Every clip is cached (`clips.json`, keyed by direction, seed, size and the exact prompt), so changing the frame count or pixel mode
 later costs no GPU time, while editing an animation's wording renders only the directions it changes (`--regen` renders everything
@@ -159,6 +162,58 @@ asymmetric outfits).
 `loop`: a looping animation (walk, run, idle) or a one-shot that returns to the start pose (wave, attack). `motion_by_dir` overrides
 the motion for some directions (front and back walks need calmer wording than side walks). `headlock` copies the first frame's head
 into the others; leave it off for animations that move the head.
+
+**One palette per character, steady colours.** `--build-palette` runs k-means in OKLab over the opaque pixels of all the
+character's animations (`--colors`, 32 by default), merges shades closer than 0.04 and saves `work/forge/palette_<name>.json`
+(Mara: 26 colours, [palette_mara.json](examples/mara/forge/palette_mara.json)). Every sheet then uses exactly these colours, so
+walk, run and idle match in the game (before: 125 different colours over Mara's four sheets). Colours are assigned with a
+**temporal hold** (`--hold`, OKLab distance): a pixel keeps last frame's colour while that is within the hold of the nearest one,
+so pixels on the edge between two shades stop blinking. The default 0.02 is half the smallest step between palette shades: it only
+adds hysteresis at the boundary; 0.04 calms more but can pin a pixel to the neighbouring shade. `--palette sheet --hold 0` is the
+old per-sheet median cut.
+
+<img src="examples/mara/forge/palette_mara.png" width="624">
+
+<img src="examples/mara/forge/palette_hold_compare.gif" width="816">
+
+*Idle and wave, front: per-sheet palette without hold (left of each pair) and character palette with hold 0.02 (right).*
+
+Flicker = share of pixels that blink A → B → A over three frames (noise, not motion), mean of the four directions (Mara, 48×64,
+the same frames):
+
+| | per-sheet palette | character palette | + hold 0.02 | + hold 0.04 |
+|---|---|---|---|---|
+| walk | .074 | .070 | .064 | .057 |
+| idle | .046 | .033 | .023 | .020 |
+| run | .076 | .074 | .067 | .063 |
+| wave | .109 | .091 | .073 | .049 |
+
+Lone specks (a pixel unlike all four neighbours) fall from 8.7% to 7.7% of the figure. The palette, hold and flicker measure follow
+ideas from [agent-sprite-forge](https://github.com/0x0funky/agent-sprite-forge) (0x0funky); the code is our own (`palette.py`).
+
+Honest note: at normal speed the difference is small. Most of the remaining shimmer is Wan redrawing fabric texture a little
+differently in every frame, which no colour assignment removes. Two optional extras attack it directly, with small gains:
+`--temporal 24` blends each frame with its clip neighbours where they agree (flicker .057 → .051; it can change a face, e.g. close
+or open the mouth, so it is off by default) and `--smooth 1` lets pixels inside filled areas take the majority shade of their
+neighbours when it is a nearby shade (specks 7.7% → 7.4%; eyes, mouth and outline stay). The real lever is a flatter design.
+
+**Palette swaps: one render, many outfits.** Because every sheet uses only the character palette, `recolor.py` can recolour a
+sheet exactly: palette colours in a hue range turn to a new hue (lightness and the ramp's own hue steps kept), and every pixel
+follows. Greys, black and the outline never move. The indexed PNGs of all variants share the same indices, so an engine can also
+swap the palette strip at runtime.
+
+```bash
+python recolor.py mara_walk_48x64 --list                                        # palette colours with their OKLab hue
+python recolor.py mara_walk_48x64 --name navy --hue 65-80:260:0.8:-0.25         # jacket: hue 65-80 -> 260, chroma x0.8, darker
+python recolor.py mara_walk_48x64 --name crimson --hue 65-80:22:1.2:-0.2 --hue 135-150:85:0.9   # jacket red, hat and socks olive
+```
+
+<img src="examples/mara/forge/palette_swaps.gif" width="588">
+
+*Mara's walk, no GPU time: original, navy, crimson, grey, blonde with a green jacket.* Materials that share a hue move together
+(Mara's hat and socks are both green); pick ranges with `--list`. The idea of recolourable base sheets comes from
+[comfyui-2d-character-pipeline](https://github.com/mor-o/comfyui-2d-character-pipeline) (mor-o), which tints greyscale sheets at
+runtime; palette swapping is the pixel-art way to do it.
 
 **What the test matrix showed (Mara):** walk, idle, run and wave all work in four directions; the 8-direction walk works from Qwen's
 three-quarter views; 64×96 gives clearly more detail; 32×48 is fine; **32×32 is too small for this chibi** (about 27 px tall, thin and

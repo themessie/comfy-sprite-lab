@@ -14,6 +14,9 @@ rows by mirroring the right-facing ones (half the Wan time; wrong for asymmetric
 Every clip is cached in work/forge/<tag>/clips.json; re-running reuses it (--regen to render again), so changing the frame count
 or the pixel mode later costs no GPU time.
 
+Colours: one palette per character (work/forge/palette_<name>.json, OKLab k-means over all its animations, near-duplicate shades
+merged: `forge.py walk,idle,run,wave --build-palette`), assigned with a temporal hold so pixels do not blink between shades; the
+flicker (A -> B -> A blinks) of each direction is printed and stored in <tag>_settings.json.
 Usage: python forge.py walk [--dirs down,left,right,up] [--frames 8] [--cell 48x64] [--margin 8] [--pixel direct|none]
                             [--seed 2] [--colors 32] [--bg magenta] [--ref-head 0.8] [--tag NAME] [--mirror-left] [--regen]
 """
@@ -27,6 +30,7 @@ from gen_wan_walk import graph as wan_graph, BACKGROUNDS, magentaish
 from make_design_sheet import measure
 from pixelops import kcentroid_down
 import sheet_cleanup as rules
+import palette as palettes
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 K = 8                                                  # source pixels per sprite pixel (the Wan canvas is cell x 8)
@@ -112,18 +116,46 @@ def pixelate(im, cw, ch, margin, mode):
     return small.crop((margin, margin, margin + cw, margin + ch))
 
 
-def finish(sheet_rgb, cw, ch, colors, key, headlock):
-    """Background key, one shared palette, clean-up rules; RGBA sheet."""
+def keyed(sheet_rgb, cw, ch, key):
+    """The sheet as RGBA with the background of every cell cleared."""
     a = np.asarray(sheet_rgb).astype(np.uint8); H, W = a.shape[:2]
     clear = np.zeros((H, W), bool)
     for y in range(0, H, ch):
         for x in range(0, W, cw):
             clear[y:y + ch, x:x + cw] = background(a[y:y + ch, x:x + cw], key)
-    rgba = np.dstack([a, np.where(clear, 0, 255)]).astype(np.uint8)
+    return np.dstack([a, np.where(clear, 0, 255)]).astype(np.uint8)
+
+
+def blend_neighbours(files, i, sigma):
+    """Clip frame i averaged with frames i-1 and i+1 (1/16 s apart) where they agree: Wan redraws fabric texture a little differently
+    every frame, the average keeps what is really there. Per pixel, a neighbour counts with weight exp(-(colour difference / sigma)^2),
+    so moving parts (a big difference) keep this frame's pixels instead of smearing."""
+    f = np.asarray(Image.open(files[i]).convert("RGB"), np.float32); acc = f.copy(); wsum = np.ones(f.shape[:2], np.float32)
+    for j in (i - 1, i + 1):
+        if 0 <= j < len(files):
+            g = np.asarray(Image.open(files[j]).convert("RGB"), np.float32)
+            w = np.exp(-(np.abs(g - f).max(-1) / sigma) ** 2); acc += g * w[..., None]; wsum += w
+    return Image.fromarray(np.clip(acc / wsum[..., None] + 0.5, 0, 255).astype(np.uint8))
+
+
+def finish(sheet_rgb, cw, ch, colors, key, headlock, pal=None, hold=0.02, smooth=0):
+    """Background key, palette (the character palette with temporal hold, or one median-cut palette for this sheet), clean-up rules.
+    Returns the RGBA sheet and the flicker (A -> B -> A blinks) of each row."""
+    rgba = keyed(sheet_rgb, cw, ch, key); H, W = rgba.shape[:2]
     op = rgba[..., 3] > 0
-    if colors and op.any():
-        pal = Image.fromarray(rgba[op][None, :, :3]).quantize(colors, method=Image.Quantize.MEDIANCUT)
-        rgba[op, :3] = np.asarray(pal.convert("RGB"))[0]
+    rows = lambda r: [rgba[r * ch:(r + 1) * ch, c * cw:(c + 1) * cw] for c in range(W // cw)]
+    if pal is not None:
+        for r in range(H // ch):
+            row = rows(r)
+            for cell, new in zip(row, palettes.assign([c.copy() for c in row], pal, hold)):
+                cell[:] = new
+        for _ in range(smooth):
+            for r in range(H // ch):
+                for cell in rows(r):
+                    cell[:] = palettes.smooth(cell, pal)
+    elif colors and op.any():
+        q = Image.fromarray(rgba[op][None, :, :3]).quantize(colors, method=Image.Quantize.MEDIANCUT)
+        rgba[op, :3] = np.asarray(q.convert("RGB"))[0]
     for r, c, cell in rules.cells(rgba, cw, ch):
         cell[:] = rules.silhouette(rules.orphans(rules.thin(cell), 14))
     if headlock:
@@ -131,14 +163,17 @@ def finish(sheet_rgb, cw, ch, colors, key, headlock):
             row = [rgba[r * ch:(r + 1) * ch, c * cw:(c + 1) * cw] for c in range(W // cw)]
             if len(row) > 1:
                 rules.headlock(row, max(4, int(ch * 0.33)), targets=range(1, len(row)))
-    pal = np.unique(rgba[..., :3][rgba[..., 3] > 0], axis=0)
+    sel = pal if pal is not None else np.unique(rgba[..., :3][rgba[..., 3] > 0], axis=0)
     for r, c, cell in rules.cells(rgba, cw, ch):
-        cell[:] = rules.selout(cell, pal)
-    return Image.fromarray(rgba, "RGBA")
+        cell[:] = rules.selout(cell, sel)
+    return Image.fromarray(rgba, "RGBA"), [round(float(palettes.flicker(rows(r))), 4) for r in range(H // ch)]
 
 
-def export(sheet, tag, out, dirs, n, cw, ch, fps):
+def export(sheet, tag, out, dirs, n, cw, ch, fps, pal=None):
     sheet.save(os.path.join(out, tag + "_sheet.png"))
+    if pal is not None:                                  # indexed copy + palette strip for palette swaps (recolor.py, engine shaders)
+        palettes.indexed(np.asarray(sheet), pal).save(os.path.join(out, tag + "_indexed.png"), transparency=0)
+        Image.fromarray(np.asarray(pal)[None]).save(os.path.join(out, tag + "_palette.png"))
     frames, tags = {}, []
     for r, dname in enumerate(dirs):
         for c in range(n):
@@ -165,15 +200,53 @@ def export(sheet, tag, out, dirs, n, cw, ch, fps):
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("anim")
+    ap = argparse.ArgumentParser(); ap.add_argument("anim", help="an animation, or several (comma-separated) with --build-palette")
     ap.add_argument("--dirs", default="down,left,right,up"); ap.add_argument("--frames", type=int)
     ap.add_argument("--cell", default="48x64"); ap.add_argument("--margin", type=int, default=8)
     ap.add_argument("--pixel", default="direct", choices=["direct", "none"]); ap.add_argument("--colors", type=int, default=32)
     ap.add_argument("--seed", type=int, default=2); ap.add_argument("--bg", default="magenta", choices=sorted(BACKGROUNDS))
     ap.add_argument("--ref-head", type=float, default=0.8); ap.add_argument("--tag")
     ap.add_argument("--mirror-left", action="store_true"); ap.add_argument("--regen", action="store_true")
+    ap.add_argument("--palette", default="character", choices=["character", "sheet"],
+                    help="character: one palette for all animations of the character (work/forge/palette_<name>.json; built from "
+                         "this animation if missing); sheet: one median-cut palette per sheet (the old way)")
+    ap.add_argument("--hold", type=float, default=0.02, help="temporal hold in OKLab distance (0 = off)")
+    ap.add_argument("--temporal", type=float, default=0,
+                    help="blend each frame with its clip neighbours where they agree (colour-difference scale, e.g. 24; 0 = off)")
+    ap.add_argument("--smooth", type=int, default=0, help="passes of the shade-limited majority filter inside filled areas (0 = off)")
+    ap.add_argument("--build-palette", action="store_true",
+                    help="build the character palette from the given animations (cached clips, e.g. walk,idle,run,wave) and stop")
     a = ap.parse_args()
-    anim = json.load(open(os.path.join(HERE, "animations", a.anim + ".json"), encoding="utf-8"))
+    pal_path = os.path.join(settings.WORK, "forge", f"palette_{character.NAME}.json")
+    key = a.bg if a.bg == "magenta" else "grey"
+    if a.build_palette:
+        px = []
+        for name in a.anim.split(","):
+            sheet, dirs, n, cw, ch, anim, picked, tag, out = build_sheet(name, a)
+            k = keyed(sheet, cw, ch, key); px.append(k[..., :3][k[..., 3] > 0])
+        pal = palettes.build(np.concatenate(px), a.colors)
+        os.makedirs(os.path.dirname(pal_path), exist_ok=True); palettes.save(pal, pal_path)
+        print(f"{len(pal)} colours from {a.anim} -> {pal_path}"); return
+    sheet, dirs, n, cw, ch, anim, picked, tag, out = build_sheet(a.anim, a)
+    pal = None
+    if a.palette == "character":
+        if not os.path.exists(pal_path):
+            k = keyed(sheet, cw, ch, key)
+            palettes.save(palettes.build(k[..., :3][k[..., 3] > 0], a.colors), pal_path)
+            print(f"no character palette yet: built one from {a.anim} -> {pal_path} (better: --build-palette walk,idle,run,wave)")
+        pal = palettes.load(pal_path)
+    final, flick = finish(sheet, cw, ch, a.colors, key, anim.get("headlock", False), pal, a.hold, a.smooth)
+    export(final, tag, out, dirs, n, cw, ch, anim.get("fps", 8), pal)
+    json.dump({"anim": a.anim, "dirs": dirs, "frames": n, "cell": [cw, ch], "margin": a.margin, "pixel": a.pixel, "seed": a.seed,
+               "bg": a.bg, "ref_head": a.ref_head, "mirror_left": a.mirror_left, "palette": a.palette, "hold": a.hold, "temporal": a.temporal, "smooth": a.smooth,
+               "flicker": dict(zip(dirs, flick)), "picks": {d: v[0] for d, v in picked.items()}},
+              open(os.path.join(out, tag + "_settings.json"), "w"), indent=1)
+    print(tag, "flicker per direction", dict(zip(dirs, flick)), "->", out)
+
+
+def build_sheet(anim_name, a):
+    """Clips (cached or rendered), frame selection and pixelation: the sheet before keying and palette."""
+    anim = json.load(open(os.path.join(HERE, "animations", anim_name + ".json"), encoding="utf-8"))
     n = a.frames or anim["frames"]; cw, ch = (int(v) for v in a.cell.lower().split("x"))
     if ((cw + 2 * a.margin) * K) % 16 or ((ch + 2 * a.margin) * K) % 16:
         raise SystemExit("cell + 2 x margin must be even in both directions (Wan needs sizes divisible by 16)")
@@ -183,7 +256,7 @@ def main():
         raise SystemExit(f"unknown directions {bad}; use {DIRS}")
     if any(VIEW[d][0] == "diag" for d in dirs) and not character.DESIGN_DIAGONALS:
         raise SystemExit("diagonal directions need design_diagonals in the character file (make_design_sheet.py --diagonals)")
-    tag = a.tag or f"{character.NAME}_{a.anim}_{cw}x{ch}"
+    tag = (a.tag if a.tag and not a.build_palette else None) or f"{character.NAME}_{anim_name}_{cw}x{ch}"
     out = os.path.join(settings.WORK, "forge", tag); os.makedirs(out, exist_ok=True)
     cache_p = os.path.join(out, "clips.json"); cache = json.load(open(cache_p)) if os.path.exists(cache_p) else {}
     bgc, bg_words = BACKGROUNDS[a.bg]
@@ -207,7 +280,7 @@ def main():
             cache[key] = files; json.dump(cache, open(cache_p, "w"), indent=1)
             print(f"{dname}: {t:.0f} s, {len(files)} frames", flush=True)
         picked[dname] = select(files, n, anim["loop"])
-        cache_frames = [Image.open(files[i]).convert("RGB") for i in picked[dname]]
+        cache_frames = [blend_neighbours(files, i, a.temporal) if a.temporal else Image.open(files[i]).convert("RGB") for i in picked[dname]]
         picked[dname] = (picked[dname], cache_frames)
     sheet = Image.new("RGB", (cw * n, ch * len(dirs)), bgc)
     for r, dname in enumerate(dirs):
@@ -218,12 +291,7 @@ def main():
         for c, fr in enumerate(picked[src][1]):
             cell = pixelate(fr, cw, ch, a.margin, a.pixel)
             sheet.paste(cell.transpose(Image.FLIP_LEFT_RIGHT) if mirrored else cell, (c * cw, r * ch))
-    final = finish(sheet, cw, ch, a.colors, a.bg if a.bg == "magenta" else "grey", anim.get("headlock", False))
-    export(final, tag, out, dirs, n, cw, ch, anim.get("fps", 8))
-    json.dump({"anim": a.anim, "dirs": dirs, "frames": n, "cell": [cw, ch], "margin": a.margin, "pixel": a.pixel, "seed": a.seed,
-               "bg": a.bg, "ref_head": a.ref_head, "mirror_left": a.mirror_left,
-               "picks": {d: v[0] for d, v in picked.items()}}, open(os.path.join(out, tag + "_settings.json"), "w"), indent=1)
-    print(tag, "->", out)
+    return sheet, dirs, n, cw, ch, anim, picked, tag, out
 
 
 if __name__ == "__main__":

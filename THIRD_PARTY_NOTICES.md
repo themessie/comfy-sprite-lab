@@ -15,6 +15,8 @@ None: all code in this repository is comfy-sprite-lab's own (MIT).
 | k-centroid downscaling (`pixelops.kcentroid_down`) | Astropulse's K-Centroid method (Retro Diffusion); our own implementation |
 | Selective outline (`sheet_cleanup.py --selout`) | A common pixel-art technique; the "darker shade of the neighbouring fill" rule as described in pixel-art tutorials (e.g. Lospec) |
 | Contrast-aware outline expansion | Used through the PixelOE package (below) |
+| Character palette (OKLab k-means, near-duplicate shades merged), temporal hold when assigning colours, A→B→A flicker measure (`palette.py`, `forge.py --palette/--hold`) | Ideas from [agent-sprite-forge](https://github.com/0x0funky/agent-sprite-forge) (0x0funky); our own implementation |
+| Recolourable base sheets (`recolor.py`, palette swaps) | Inspired by [comfyui-2d-character-pipeline](https://github.com/mor-o/comfyui-2d-character-pipeline) (mor-o), which tints greyscale sheets; palette swapping itself is a classic pixel-art technique; our own implementation |
 
 ## Software you install (not included)
 
