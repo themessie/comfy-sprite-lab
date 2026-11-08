@@ -9,5 +9,6 @@
     "left": "walking in place with clear, alternating steps: one leg forward while the other pushes off behind, feet lifting off the ground, arms swinging opposite to the legs",
     "right": "walking in place with clear, alternating steps: one leg forward while the other pushes off behind, feet lifting off the ground, arms swinging opposite to the legs"
   },
-  "headlock": true
+  "headlock": true,
+  "pose": "walk_step"
 }

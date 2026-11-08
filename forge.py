@@ -221,7 +221,11 @@ def main():
                     help="character: one palette for all animations of the character (work/forge/palette_<name>.json; built from "
                          "this animation if missing); sheet: one median-cut palette per sheet (the old way)")
     ap.add_argument("--hold", type=float, default=0.02, help="temporal hold in OKLab distance (0 = off)")
-    ap.add_argument("--start", action="append", help="DIR=posed.png: start (and end) image for a direction, e.g. from pose_start.py")
+    ap.add_argument("--start-mode", default="standing", choices=["standing", "posed"],
+                    help="standing: the design-sheet view starts every clip; posed: front and back start mid-step (the animation's "
+                         "\"pose\" skeleton, pose_start.py), so walks and runs toward and away from the viewer take real steps")
+    ap.add_argument("--pose-seed", default="3", help="Qwen seed for the posed starts: 3, or per direction: 3,up=4")
+    ap.add_argument("--start", action="append", help="DIR=image.png: start (and end) image for a direction, e.g. from pose_start.py")
     ap.add_argument("--temporal", type=float, default=0,
                     help="blend each frame with its clip neighbours where they agree (colour-difference scale, e.g. 24; 0 = off)")
     ap.add_argument("--smooth", type=int, default=0, help="passes of the shade-limited majority filter inside filled areas (0 = off)")
@@ -249,7 +253,7 @@ def main():
     final, flick = finish(sheet, cw, ch, a.colors, key, anim.get("headlock", False), pal, a.hold, a.smooth)
     export(final, tag, out, dirs, n, cw, ch, anim.get("fps", 8), pal)
     json.dump({"anim": a.anim, "dirs": dirs, "frames": n, "cell": [cw, ch], "margin": a.margin, "pixel": a.pixel, "seed": a.seed,
-               "bg": a.bg, "ref_head": a.ref_head, "mirror_left": a.mirror_left, "palette": a.palette, "hold": a.hold, "start": a.start, "temporal": a.temporal, "smooth": a.smooth,
+               "bg": a.bg, "ref_head": a.ref_head, "mirror_left": a.mirror_left, "palette": a.palette, "hold": a.hold, "start": a.start, "start_mode": a.start_mode, "pose_seed": a.pose_seed, "temporal": a.temporal, "smooth": a.smooth,
                "flicker": dict(zip(dirs, flick)), "picks": {d: v[0] for d, v in picked.items()}},
               open(os.path.join(out, tag + "_settings.json"), "w"), indent=1)
     print(tag, "flicker per direction", dict(zip(dirs, flick)), "->", out)
@@ -275,6 +279,15 @@ def build_sheet(anim_name, a):
     settings.need_comfy(); os.makedirs(os.path.join(CIN, "sprite_forge"), exist_ok=True)
     picked = {}
     starts = dict(s.split("=", 1) for s in (a.start or []))
+    if a.start_mode == "posed":                          # front and back from a posed start frame (pose_start.py), sides as usual
+        if not anim.get("pose"):
+            raise SystemExit(f"{anim_name}.json has no \"pose\" (a skeleton from pose_start.POSES): use --start-mode standing")
+        import pose_start
+        ps = a.pose_seed.split(","); default = next((int(s) for s in ps if "=" not in s), 3)
+        seeds = {k: int(v) for k, v in (s.split("=") for s in ps if "=" in s)}
+        for d in ("down", "up"):
+            if d in dirs and d not in starts:
+                starts[d] = pose_start.make(d, anim["pose"], seeds.get(d, default), (cw, ch), a.margin, a.ref_head)
     for dname in dirs:
         if a.mirror_left and dname in ("left", "up_left", "down_left") and dname.replace("left", "right") in dirs:
             continue

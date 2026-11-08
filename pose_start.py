@@ -8,8 +8,9 @@ skeleton is the second image of Qwen 2.1's own multi-image edit, so no ControlNe
 Skeletons are COCO-18 keypoints in figure units (x from the figure's centre, y from the top of the cap, both / figure height),
 measured on Mara's front view, so they fit chibi proportions; back views swap left and right and drop the face points.
 
-Usage: python pose_start.py --dir down --pose walk_step --seeds 2,3
-       python forge.py walk --dirs down --start down=work/forge/poses/mara_walk_step_down_s3.png
+Usage: python pose_start.py --dir down --pose walk_step --seeds 2,3           # try seeds, look at work/forge/poses/
+       python forge.py walk --start-mode posed --pose-seed 3                     # front and back from posed starts (made if missing)
+       python forge.py walk --dirs down --start down=work/forge/poses/mara_walk_step_down_s3.png   # or any image you choose
 """
 import argparse, os, shutil
 import numpy as np
@@ -68,33 +69,44 @@ def draw(kp, size, w=8):
     return im
 
 
-def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--dir", default="down", choices=["down", "up"])
-    ap.add_argument("--pose", default="walk_step", choices=sorted(POSES)); ap.add_argument("--seeds", default="2,3")
-    ap.add_argument("--cell", default="48x64"); ap.add_argument("--margin", type=int, default=8); ap.add_argument("--ref-head", type=float, default=0.8)
-    a = ap.parse_args()
-    cw, ch = (int(v) for v in a.cell.lower().split("x")); bgc, bg_words = BACKGROUNDS["magenta"]
-    start = start_image(cut_view(character.DESIGN_SHEET, VIEW[a.dir][1], a.ref_head), cw, ch, a.margin, bgc)
+def make(direction, pose, seed, cell=(48, 64), margin=8, ref_head=0.8, force=False):
+    """The posed start image work/forge/poses/<character>_<pose>_<direction>_s<seed>.png (made with Qwen unless it exists)."""
+    out = os.path.join(settings.WORK, "forge", "poses"); os.makedirs(out, exist_ok=True)
+    name = f"{character.NAME}_{pose}_{direction}"; dst = os.path.join(out, f"{name}_s{seed}.png")
+    if os.path.exists(dst) and not force:
+        return dst
+    cw, ch = cell; bgc, bg_words = BACKGROUNDS["magenta"]
+    start = start_image(cut_view(character.DESIGN_SHEET, VIEW[direction][1], ref_head), cw, ch, margin, bgc)
     ys, xs = np.nonzero(~magentaish(np.asarray(start)))
     box = ((xs.min() + xs.max()) / 2, ys.min(), ys.max() - ys.min())
-    out = os.path.join(settings.WORK, "forge", "poses"); os.makedirs(out, exist_ok=True)
-    name = f"{character.NAME}_{a.pose}_{a.dir}"
-    skel = draw(keypoints(a.pose, a.dir, box), start.size)
+    skel = draw(keypoints(pose, direction, box), start.size)
     skel.save(os.path.join(out, name + "_skeleton.png")); Image.blend(start, skel, 0.5).save(os.path.join(out, name + "_overlay.png"))
     os.makedirs(os.path.join(CIN, "sprite_forge"), exist_ok=True)
     start.save(os.path.join(CIN, "sprite_forge", name + "_src.png")); skel.save(os.path.join(CIN, "sprite_forge", name + "_skel.png"))
     prompt = (f"Image 1 shows a character; image 2 is an OpenPose skeleton. Redraw the character from image 1 ({character.DESCRIPTION}) "
-              f"exactly: same art style, outfit, colours, size and position, {FACING[a.dir]}, on the same flat {bg_words} background, but "
-              f"in the pose of the skeleton in image 2: {POSES[a.pose][1]}."
+              f"exactly: same art style, outfit, colours, size and position, {FACING[direction]}, on the same flat {bg_words} background, but "
+              f"in the pose of the skeleton in image 2: {POSES[pose][1]}."
               + (" We see the back of the clothes: no buttons, no opening and no shirt front, the back stays plain as in image 1."
-                 if a.dir == "up" else ""))      # without this, Qwen often draws the jacket's front (buttons, blouse) on the back
+                 if direction == "up" else ""))  # without this, Qwen often draws the jacket's front (buttons, blouse) on the back
+    g = qwen_graph(f"sprite_forge/{name}_src.png", prompt, seed, f"sprite_forge/poses/{name}_s{seed}")
+    g["11"] = {"class_type": "LoadImage", "inputs": {"image": f"sprite_forge/{name}_skel.png"}}
+    g["25"]["inputs"]["images.image_2"] = ["11", 0]
+    t, o = wait(post(g)); i = o["51"]["images"][0]
+    shutil.copy(os.path.join(COUT, i.get("subfolder", ""), i["filename"]), dst)
+    print(f"posed start {dst} ({t:.0f} s)", flush=True)
+    return dst
+
+
+def main():
+    ap = argparse.ArgumentParser(); ap.add_argument("--dir", default="down", choices=["down", "up"])
+    ap.add_argument("--pose", default="walk_step", choices=sorted(POSES)); ap.add_argument("--seeds", default="2,3")
+    ap.add_argument("--cell", default="48x64"); ap.add_argument("--margin", type=int, default=8); ap.add_argument("--ref-head", type=float, default=0.8)
+    ap.add_argument("--force", action="store_true", help="make the image again even if it exists")
+    a = ap.parse_args()
+    cell = tuple(int(v) for v in a.cell.lower().split("x"))
     for seed in (int(s) for s in a.seeds.split(",")):
-        g = qwen_graph(f"sprite_forge/{name}_src.png", prompt, seed, f"sprite_forge/poses/{name}_s{seed}")
-        g["11"] = {"class_type": "LoadImage", "inputs": {"image": f"sprite_forge/{name}_skel.png"}}
-        g["25"]["inputs"]["images.image_2"] = ["11", 0]
-        t, o = wait(post(g)); i = o["51"]["images"][0]
-        dst = os.path.join(out, f"{name}_s{seed}.png"); shutil.copy(os.path.join(COUT, i.get("subfolder", ""), i["filename"]), dst)
-        print(f"{dst} ({t:.0f} s)   ->  forge.py ... --dirs {a.dir} --start {a.dir}={dst}", flush=True)
+        dst = make(a.dir, a.pose, seed, cell, a.margin, a.ref_head, a.force)
+        print(f"{dst}   ->  forge.py ... --dirs {a.dir} --start {a.dir}={dst}", flush=True)
 
 
 if __name__ == "__main__":

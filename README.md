@@ -114,6 +114,13 @@ The same Wan route, generalised: **any animation, 1 to 8 directions, any frame c
 |---|---|---|---|
 | <img src="examples/mara/forge/walk.gif" width="200"> | <img src="examples/mara/forge/idle.gif" width="200"> | <img src="examples/mara/forge/run.gif" width="200"> | <img src="examples/mara/forge/wave.gif" width="200"> |
 
+Two start modes for walks and runs (more [below](#posed-start-frames)):
+
+| | Walk | Run |
+|---|---|---|
+| `--start-mode standing` (default): every clip starts from the design-sheet view; calm front/back wording, seed 2 | <img src="examples/mara/forge/walk.gif" width="200"> | <img src="examples/mara/forge/run.gif" width="200"> |
+| `--start-mode posed`: front and back start mid-step from a skeleton-posed frame; real steps, no seed hunting | <img src="examples/mara/forge/walk_posed.gif" width="200"> | <img src="examples/mara/forge/run_posed.gif" width="200"> |
+
 | 8 directions | 64×96 |
 |---|---|
 | <img src="examples/mara/forge/walk_8dir.gif" width="420"> | <img src="examples/mara/forge/walk_64x96.gif" width="260"> |
@@ -127,6 +134,8 @@ python forge.py walk --cell 64x96 --dirs down,right
 python forge.py walk --dirs down,down_left,left,up_left,up,up_right,right,down_right   # needs design_diagonals
 python forge.py walk --frames 12                                 # re-cut from the cached clips: no GPU time
 python forge.py walk,idle,run,wave --build-palette               # one palette for all of the character's animations
+python forge.py walk --start-mode posed                          # front and back walk from posed start frames
+python forge.py run --start-mode posed --pose-seed 3,up=4        # Qwen seed per direction for the posed frames
 ```
 
 1. **Start image per direction:** the view from the design sheet (down, right, up, left) or from the character's three-quarter sheet
@@ -156,12 +165,13 @@ asymmetric outfits).
 { "name": "walk", "loop": true, "frames": 8, "fps": 10, "clip_frames": 33,
   "motion": "walking in place at a calm pace with small natural steps, ...",
   "motion_by_dir": { "left": "walking in place with clear, alternating steps, ...", "right": "..." },
-  "headlock": true }
+  "headlock": true, "pose": "walk_step" }
 ```
 
 `loop`: a looping animation (walk, run, idle) or a one-shot that returns to the start pose (wave, attack). `motion_by_dir` overrides
 the motion for some directions (front and back walks need calmer wording than side walks). `headlock` copies the first frame's head
-into the others; leave it off for animations that move the head.
+into the others; leave it off for animations that move the head. `pose` names the skeleton (`walk_step`, `run_stride` in
+`pose_start.POSES`) used by `--start-mode posed`; animations without one (idle, wave) only have the standing mode.
 
 **One palette per character, steady colours.** `--build-palette` runs k-means in OKLab over the opaque pixels of all the
 character's animations (`--colors`, 32 by default), merges shades closer than 0.04 and saves `work/forge/palette_<name>.json`
@@ -215,18 +225,26 @@ python recolor.py mara_walk_48x64 --name crimson --hue 65-80:22:1.2:-0.2 --hue 1
 [comfyui-2d-character-pipeline](https://github.com/mor-o/comfyui-2d-character-pipeline) (mor-o), which tints greyscale sheets at
 runtime; palette swapping is the pixel-art way to do it.
 
-**Posed start frames: real steps toward and away from the viewer.** Wan copies its start pose. From Mara standing still, the
+<a id="posed-start-frames"></a>**Posed start frames: real steps toward and away from the viewer.** Wan copies its start pose. From Mara standing still, the
 front and back walks shuffle (the feet barely lift) and the front run crosses its arms, unless the wording and the seed are lucky.
 `pose_start.py` draws an OpenPose skeleton at the character's proportions (mid-step, or mid-stride for a run; back views swap
 left and right and drop the face), and Qwen-Image 2.1 redraws the character in that pose, with the skeleton as its second input
 image (no ControlNet; the Fun ControlNet-Union we also tried left dark blocks on the skirt). That frame becomes Wan's start and end
-frame (`--start`), so Wan has to complete a real step cycle to get back to it.
+frame, so Wan has to complete a real step cycle to get back to it.
+
+`--start-mode posed` does all of it: for the front and back rows it makes the posed frame with the animation's `pose` skeleton and
+`--pose-seed` (default 3; per direction as `3,up=4`) unless `work/forge/poses/<character>_<pose>_<dir>_s<seed>.png` exists, and
+starts those clips from it; the side rows start from the design sheet as before. Look at the posed frame before the Wan render if
+you can: one of the six back views we made drew a white collar on Mara's back (run, seed 3; hence `up=4`). To choose by eye, or to use any image of your own as a start:
 
 ```bash
-python pose_start.py --dir down --pose walk_step --seeds 2,3        # ~20 s per seed; pick one (work/forge/poses/)
-python pose_start.py --dir up --pose run_stride --seeds 3,4
-python forge.py walk --start down=work/forge/poses/mara_walk_step_down_s3.png --start up=work/forge/poses/mara_walk_step_up_s3.png
+python pose_start.py --dir up --pose run_stride --seeds 3,4         # ~20 s per seed; look at work/forge/poses/
+python forge.py run --start down=work/forge/poses/mara_run_stride_down_s3.png --start up=my_pose.png   # explicit images win
 ```
+
+Which to use: **posed** for walks and runs that move toward or away from the camera (real steps, no seed hunting), **standing**
+when the start must be exactly the design sheet (the posed redraw is Qwen's, close but not pixel-identical) or for animations
+without a skeleton.
 
 <img src="examples/mara/forge/pose_starts.png" width="800">
 

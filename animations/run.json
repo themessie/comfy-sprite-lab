@@ -9,5 +9,6 @@
   "motion_by_dir": {
     "down": "running in place toward the viewer: quick light steps, knees come up, arms bent at the elbows at the sides of the body, pumping forward and back; the hands never cross in front of the chest",
     "up": "running in place away from the viewer: quick light steps, knees come up, arms bent at the elbows at the sides of the body, pumping forward and back; the hands never cross in front of the chest"
-  }
+  },
+  "pose": "run_stride"
 }
