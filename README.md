@@ -149,7 +149,8 @@ python forge.py run --start-mode posed --pose-seed 3,up=4        # Qwen seed per
 4. **Pixelation:** k-centroid ÷8 with true colours (`--pixel direct`), or a smooth downscale (`--pixel none`).
 5. **Finish:** magenta key, the character palette with temporal hold (below), outline thinning, specks, spikes, head lock (if the
    animation sets it), selective outline. The flicker of each direction is printed and stored in `<tag>_settings.json`.
-6. **Export** to `work/forge/<tag>/`: `<tag>_sheet.png` (rows = directions, columns = frames), `<tag>.json` (Aseprite-style frames
+6. **Export** to `work/forge/<tag>/` (default tag `<character>_<animation>_<cell>`, `_posed` added in posed mode, so the two
+   modes never overwrite each other): `<tag>_sheet.png` (rows = directions, columns = frames), `<tag>.json` (Aseprite-style frames
    with durations from the fps, one frame tag per direction), a GIF per direction and one with all directions; with the character
    palette also `<tag>_indexed.png` (index 0 transparent, palette colour i at index i + 1) and `<tag>_palette.png` (a 1-pixel strip
    of the palette) for palette-swap shaders.

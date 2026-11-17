@@ -271,7 +271,9 @@ def build_sheet(anim_name, a):
         raise SystemExit(f"unknown directions {bad}; use {DIRS}")
     if any(VIEW[d][0] == "diag" for d in dirs) and not character.DESIGN_DIAGONALS:
         raise SystemExit("diagonal directions need design_diagonals in the character file (make_design_sheet.py --diagonals)")
-    tag = (a.tag if a.tag and not a.build_palette else None) or f"{character.NAME}_{anim_name}_{cw}x{ch}"
+    # the default tag keeps the start modes apart (mara_walk_48x64, mara_walk_48x64_posed): a posed run never overwrites the standing one
+    tag = (a.tag if a.tag and not a.build_palette else None) or (f"{character.NAME}_{anim_name}_{cw}x{ch}"
+                                                                  + ("_posed" if a.start_mode == "posed" else ""))
     out = os.path.join(settings.WORK, "forge", tag); os.makedirs(out, exist_ok=True)
     cache_p = os.path.join(out, "clips.json"); cache = json.load(open(cache_p)) if os.path.exists(cache_p) else {}
     bgc, bg_words = BACKGROUNDS[a.bg]
